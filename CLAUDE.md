@@ -10,7 +10,10 @@
 
 Ronda DC es un simulador 3D público de un turno de operación en una sala de datacenter (operador N1), inspirado en el enfoque de Blue-Jr (https://heindall92.github.io/Blue-Jr/): turno con alertas, tickets, decisiones corregidas al momento e informe final. Autor: Nicolás Sánchez Rodríguez (docente DUOC UC / INACAP). Idioma de la interfaz: español de Chile.
 
-## Estado actual (MVP v0.1)
+## Estado actual (v0.2, ver CHANGELOG.md)
+- v0.2: vista de detalle del rack, transición continua sala ↔ rack, temas Gris de sala / Alto rendimiento (claro y oscuro), lenguaje de estado por forma, textos centralizados, README público.
+
+### Base del MVP (v0.1)
 - Un turno de 08:00 a 15:00 en "Cordillera Colo · Sala A" (empresa ficticia), 10 racks (R01–R10) de tres clientes, CRAC-1/2, UPS-A/B, sensor de fugas, control de acceso.
 - 8 eventos: 3 que no requieren escalar (proveedor con cambio aprobado, sensor suelto que es un falso positivo, autoprueba de la UPS) y 5 reales (paneles ciegos, PSU B+B en PDU-B, falla de CRAC-2, fuga de condensado, puerta de R02 con un cable de consola).
 - Corrección por ticket: clasificación 25, prioridad 15, escalamiento 20, acciones 30, evidencia 10, menos penalizaciones por SLA. Las acciones críticas dejan las acciones en 0 y producen impactos en la sala.
@@ -32,12 +35,17 @@ Ronda DC es un simulador 3D público de un turno de operación en una sala de da
 - `template.html`: CSS y estructura (los textos estáticos llevan `data-i18n`, `data-i18n-html`, `data-i18n-list` o `data-i18n-attr`). `build.mjs`: esbuild empaqueta todo en `dist/index.html` (un solo archivo, sin peticiones externas).
 
 ## Comandos
-- `npm install` y luego `node build.mjs` → `dist/index.html`
+- `npm install` y luego `npm run build` (o `node build.mjs`) → `dist/index.html` y `dist/og.png`
+
+## Documentación
+- `README.md` (público, ES + resumen EN), `CHANGELOG.md`, `LICENSE` (MIT), `docs/ROADMAP.md`.
+- `docs/capturas/`: capturas reales y GIF de la transición usados en el README. `docs/banner.png`, `docs/logo.svg`, `docs/boton-abrir.svg`, `docs/og.png` (imagen Open Graph, se copia a `dist/`).
+- Al cambiar la interfaz de forma visible, regenerar las capturas y agregar la entrada en `CHANGELOG.md`.
 - Las pruebas se hicieron con Playwright + Chrome/Edge recorriendo los 8 tickets. Ojo: con `--use-gl=swiftshader` el fondo de la escena sale negro (defecto de SwiftShader); para revisar colores, usar el renderizado normal del navegador.
 - `npm run contrast` antes de tocar colores de un tema.
 
 ## Convenciones
 - Todo debe ser ficticio (empresa, personas, clientes). No usar marcas reales en el diseño propio.
-- El diseño actual se parece demasiado a un mockup de LinkedIn ("LAKA Soluciones Tecnológicas", widget 3D para Zabbix): hay que diferenciarlo (ver ROADMAP).
+- No volver al estilo del mockup de LinkedIn de referencia (racks negros con barra de color arriba, acento azul, fondo casi negro); la identidad propia está en `src/themes/` (ver `docs/ROADMAP.md`, punto 2).
 - Funcionar como un solo HTML local-first (progreso en localStorage con try/catch).
 - Los textos para el estudiante deben ser claros y explicar el porqué con una referencia normativa (ASHRAE TC 9.9, TIA-942, Uptime Tiers, ISO/IEC 27001, ISO/IEC 20000, ITIL).

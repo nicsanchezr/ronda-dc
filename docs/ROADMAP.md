@@ -1,5 +1,7 @@
 # Roadmap · Ronda DC v0.2
 
+> Estado al 15-11-2026: puntos 0, 1 y 2 hechos (v0.2, ver [`CHANGELOG.md`](../CHANGELOG.md)). Contexto del código en [`CLAUDE.md`](../CLAUDE.md).
+
 ## 0. Cambio de nombre a Ronda DC ✅
 - Reemplazar "Turno de Sala" por "Ronda DC" en el título, la cabecera, la portada, el informe Markdown, la clave de localStorage (`ronda-dc-ultimo`, migrando la anterior si existe), package.json y README.
 - Crear un logotipo propio sencillo (SVG en línea) coherente con la nueva identidad visual del punto 2.
@@ -35,4 +37,4 @@ Mejoras pedidas por Nicolás (15-11-2026), en orden sugerido.
 
 ## Después
 - Más turnos (semana completa), escenarios en JSON para que otros docentes creen casos, personalización por asignatura (AAY1107 Monitoreo de Redes, Comunicaciones Corporativas, etc.).
-- Repositorio público en GitHub (nicsanchezr) con GitHub Pages, CI con Playwright y licencia.
+- ~~Repositorio público en GitHub con GitHub Pages y licencia~~ (hecho en v0.2). Pendiente: CI con Playwright que recorra los 8 tickets y regenere las capturas de `docs/capturas/`.

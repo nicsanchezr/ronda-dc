@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="64" viewBox="0 0 320 64" role="img" aria-label="Abrir Ronda DC">
+  <title>Abrir Ronda DC</title>
+  <rect width="320" height="64" rx="10" fill="#c2410c"/>
+  <path d="M34 20l18 12-18 12z" fill="#ffffff"/>
+  <text x="66" y="41" fill="#ffffff" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="24" font-weight="700" letter-spacing=".5">Abrir Ronda DC</text>
+  <text x="268" y="41" fill="#ffffff" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="22" opacity=".85">↗</text>
+</svg>

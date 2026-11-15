@@ -37,4 +37,6 @@ const html = fs.readFileSync('template.html', 'utf8')
   .replace('<script>/*APP*/</script>', () => '<script>' + js + '</script>');
 fs.mkdirSync('dist', { recursive: true });
 fs.writeFileSync('dist/index.html', html);
+// Imagen Open Graph (solo la leen las redes al compartir el enlace; la página no la carga)
+if (fs.existsSync('docs/og.png')) fs.copyFileSync('docs/og.png', 'dist/og.png');
 console.log('ok', (html.length / 1024).toFixed(0) + ' KB', '(fuentes: ' + (fonts.length / 1024).toFixed(0) + ' KB)');
