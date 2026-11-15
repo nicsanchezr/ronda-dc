@@ -18,7 +18,7 @@ function freshState() {
   return {
     world: createWorld(), running: false, speed: 1, mode: 'estado', tab: 'monitoreo',
     tickets: [], active: null, started: new Set(), sel: null, ended: false, modal: false,
-    notes: [], lastMinute: -1, seenSys: 0,
+    notes: [], lastMinute: -1, seenSys: 0, begun: false,
   };
 }
 
@@ -450,7 +450,7 @@ function endShift() {
     <h3>${t('end.handover')}</h3>
     <p class="muted small">${t('end.handoverHint')}</p>
     <textarea id="relevo" rows="4" placeholder="${t('end.handoverPh')}"></textarea>
-    <div class="mf"><button class="btn ghost" data-act="restart">${t('end.restart')}</button><button class="btn ghost" id="dlbtn" data-act="download">${t('end.download')}</button><button class="btn" data-act="copy">${t('end.copy')}</button></div>
+    <div class="mf"><a class="btn ghost" href="#">${t('landing.home')}</a><button class="btn ghost" data-act="restart">${t('end.restart')}</button><button class="btn ghost" id="dlbtn" data-act="download">${t('end.download')}</button><button class="btn" data-act="copy">${t('end.copy')}</button></div>
     <p class="muted small" id="copymsg"></p>`;
   if (window.self !== window.top) $('#dlbtn').hidden = true;
   $('#end').hidden = false;
@@ -504,7 +504,7 @@ document.addEventListener('click', async (e) => {
   else if (act === 'rack-detail') openRackView(b.dataset.rack);
   else if (act === 'pick-device') openRackView(b.dataset.rack, b.dataset.dev);
   else if (act === 'insp-rack') { S.sel = { kind: 'rack', id: b.dataset.rack }; scene.select('rack', b.dataset.rack); renderInspector(); }
-  else if (act === 'restart') { location.hash = ''; boot(); $('#end').hidden = true; start(); }
+  else if (act === 'restart') { boot(); $('#end').hidden = true; start(); }
   else if (act === 'copy') {
     try { await navigator.clipboard.writeText(report()); $('#copymsg').textContent = t('end.copied'); }
     catch (err) { $('#copymsg').textContent = t('end.copyFail'); }
@@ -515,7 +515,7 @@ document.addEventListener('click', async (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && e.target.matches('.row.ticket')) openTicket(e.target.dataset.tk);
   if (e.key === 'Escape' && !$('#modal').hidden && $('#resolveform')) closeModal();
-  else if (e.key === 'Escape' && $('#modal').hidden && $('#end').hidden && $('#intro').hidden && scene.detail && !scene.busy && $('#setpop').hidden && !e.target.matches('input, textarea')) scene.exitRack();
+  else if (e.key === 'Escape' && $('#modal').hidden && $('#end').hidden && $('#briefing').hidden && $('#landing').hidden && scene.detail && !scene.busy && $('#setpop').hidden && !e.target.matches('input, textarea')) scene.exitRack();
 });
 document.addEventListener('submit', (e) => {
   if (e.target.id === 'noteform') {
@@ -571,7 +571,8 @@ function boot() {
 }
 
 function start() {
-  $('#intro').hidden = true;
+  panelHide($('#briefing'));
+  S.begun = true;
   S.running = true; lastTs = performance.now(); updateSpeedUI();
   S.world.log.push({ t: 0, kind: 'sala', text: t('sim.shiftStart') });
   advance(0.01); tickUI();
@@ -595,8 +596,73 @@ $('#setpop').addEventListener('click', (e) => { const b = e.target.closest('[dat
 document.addEventListener('click', (e) => { if (!$('#setpop').hidden && !e.target.closest('.settings')) toggleSettings(false); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#setpop').hidden) { toggleSettings(false); $('#setbtn').focus(); } });
 
+// ---------- Ayuda «?» (se puede abrir en cualquier momento; pausa el reloj) --------------------
+let helpPaused = false;
+function toggleHelp(open) {
+  const pop = $('#helppop');
+  const willOpen = open ?? (pop.hidden || pop.classList.contains('leaving'));
+  if (willOpen === !(pop.hidden || pop.classList.contains('leaving'))) return;
+  $('#helpbtn').setAttribute('aria-expanded', willOpen);
+  if (willOpen) {
+    helpPaused = S.running; if (S.running) { S.running = false; updateSpeedUI(); }
+    toggleSettings(false); panelShow(pop, 'help');
+  } else {
+    panelHide(pop);
+    if (helpPaused) { helpPaused = false; S.running = true; lastTs = performance.now(); updateSpeedUI(); }
+  }
+}
+$('#helpbtn').addEventListener('click', (e) => { e.stopPropagation(); toggleHelp(); });
+$('#helpclose').addEventListener('click', () => { toggleHelp(false); $('#helpbtn').focus(); });
+document.addEventListener('click', (e) => { if (!$('#helppop').hidden && !e.target.closest('.helpwrap')) toggleHelp(false); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#helppop').hidden) { toggleHelp(false); $('#helpbtn').focus(); } });
+
+// ---------- Portada y rutas por hash (#turno, #checklist, #demo) ------------------------------
+const SOON = ['checklist', 'demo'];
+function renderLastRun() {
+  const last = loadLastRun();
+  $('#lastrun').textContent = last ? t('landing.lastRun', { pts: last.pts, max: last.max, date: last.fecha }) : t('landing.lastNone');
+}
+function showLanding(soon) {
+  if (S.running) { S.running = false; updateSpeedUI(); }
+  toggleSettings(false); toggleHelp(false);
+  panelHide($('#briefing'));
+  $('#end').hidden = true;
+  document.body.classList.add('is-landing');
+  $('.lset').appendChild($('.settings'));
+  scene.setLanding(true);
+  $('#turnobtn').textContent = t(S.begun && !S.ended ? 'landing.turnoContinue' : 'landing.turnoStart');
+  renderLastRun();
+  document.querySelectorAll('[data-modecard]').forEach((c) => c.classList.toggle('hl', c.dataset.modecard === soon));
+  const note = $('#soonnote');
+  note.hidden = !soon;
+  if (soon) note.textContent = t('landing.soonNote', { mode: t('landing.' + soon + 'Title') });
+  panelShow($('#landing'), 'landing');
+  if (soon) $(`[data-modecard="${soon}"]`).scrollIntoView({ block: 'center' });
+}
+function enterTurno() {
+  if (!document.body.classList.contains('is-landing')) return;
+  toggleSettings(false);
+  panelHide($('#landing'));
+  document.body.classList.remove('is-landing');
+  $('header').appendChild($('.settings'));
+  for (const el of [$('header'), $('aside')]) { el.classList.remove('entering'); void el.offsetWidth; el.classList.add('entering'); el.addEventListener('animationend', () => el.classList.remove('entering'), { once: true }); }
+  scene.setLanding(false, () => {
+    if (!S.begun) panelShow($('#briefing'), 'brief');
+    else if (S.ended) $('#end').hidden = false;
+    else { S.running = true; lastTs = performance.now(); updateSpeedUI(); }
+  });
+}
+function route() {
+  const h = location.hash.replace(/^#\/?/, '');
+  if (h === 'turno') enterTurno();
+  else showLanding(SOON.includes(h) ? h : null);
+}
+
 applyI18n();
 $('#startbtn').addEventListener('click', start);
-const last = loadLastRun();
-if (last) $('#lastrun').textContent = t('intro.lastRun', { pts: last.pts, max: last.max, date: last.fecha });
 boot();
+// arranca en modo portada (la escena gira de fondo); con #turno, la cámara entra a la sala
+document.body.classList.add('is-landing');
+scene.setLanding(true);
+window.addEventListener('hashchange', route);
+route();

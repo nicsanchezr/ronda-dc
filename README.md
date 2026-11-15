@@ -43,7 +43,7 @@ Las alertas de monitoreo abren tickets. El estudiante recorre la sala en 3D, rev
 
 ## Cómo se juega
 
-1. Comienza el turno. El reloj avanza (1 minuto del turno = 5 segundos a 1×) y puedes pausar, acelerar o adelantar al siguiente evento.
+1. En la portada, elige **Turno**: la cámara entra a la sala y aparece un briefing breve (las mismas instrucciones quedan en el botón **?** durante todo el turno). Luego comienza el turno: el reloj avanza (1 minuto del turno = 5 segundos a 1×) y puedes pausar, acelerar o adelantar al siguiente evento.
 2. Las alertas de severidad Advertencia o superior **crean un ticket**. En la sala, los racks con alarma muestran un contorno y un ícono cuya forma indica la prioridad: cuadrado (1), rombo (2), triángulo (3).
 3. **Inspecciona:** clic en racks, CRAC, UPS o el piso. **Doble clic en un rack** para verlo de cerca, por delante y por detrás: cada equipo con sus LED, sus fuentes y la PDU a la que va cada una.
 4. **Adjunta evidencia** (📎) desde la sala, el monitoreo, el calendario de cambios y el registro de accesos.
@@ -60,6 +60,10 @@ Las alertas de monitoreo abren tickets. El estudiante recorre la sala en 3D, rev
 </p>
 
 ## Modos
+
+![Portada de Ronda DC con los tres modos y la sala girando de fondo](docs/capturas/portada.png)
+
+Cada modo se puede enlazar directamente: [`#turno`](https://nicsanchezr.github.io/ronda-dc/#turno), [`#checklist`](https://nicsanchezr.github.io/ronda-dc/#checklist) y [`#demo`](https://nicsanchezr.github.io/ronda-dc/#demo).
 
 | Modo | Estado | Descripción |
 |---|---|---|

@@ -33,6 +33,8 @@ Ronda DC es un simulador 3D público de un turno de operación en una sala de da
 - `assets/fonts/`: tipografías woff2 incrustadas en el HTML por `build.mjs` (nombre `Familia-Peso.woff2`, licencias en `LICENCIAS.md`).
 - `tools/contrast.mjs` (`npm run contrast`): verifica WCAG AA de cada tema y modo.
 - `src/i18n/`: textos de la interfaz (`es.js`, idioma inicial) y `t(clave, valores)` / `applyI18n()` en `index.js`. Los textos nuevos de la interfaz van al diccionario, no en duro en el código. Los textos de los escenarios (`scenario.js`, `sim.js`) aún no están centralizados.
+- Portada y rutas (`main.js`): `#turno`, `#checklist`, `#demo`; sin hash = portada (`body.is-landing` oculta cabecera y panel; la escena gira con `scene.setLanding(true)`). `enterTurno()` hace volar la cámara a la sala (`setLanding(false)`) y muestra el briefing (`#briefing`) si el turno no ha comenzado. Ayuda «?» (`#helppop`) pausa el reloj mientras está abierta.
+- Las animaciones de cámara (`run()` en `scene3d.js`) usan tiempo acumulado con pasos de cuadro de máximo 50 ms; no volver a medir con el reloj absoluto.
 - `template.html`: CSS y estructura (los textos estáticos llevan `data-i18n`, `data-i18n-html`, `data-i18n-list` o `data-i18n-attr`). `build.mjs`: esbuild empaqueta todo en `dist/index.html` (un solo archivo, sin peticiones externas).
 
 ## Comandos

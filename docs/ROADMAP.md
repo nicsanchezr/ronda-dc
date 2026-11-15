@@ -31,7 +31,8 @@ Mejoras pedidas por Nicolás (15-11-2026), en orden sugerido.
 - Reproducción automática del turno: la cámara recorre la sala, se disparan los eventos, un "operador fantasma" inspecciona, adjunta evidencia y cierra tickets con las respuestas correctas, con subtítulos que explican cada paso.
 - Pensado para mostrar el simulador en ferias, clases o LinkedIn (modo kiosco con reinicio en bucle, se detiene al tocar).
 
-## 5. Landing más cuidada
+## 5. Landing más cuidada (en parte ✅)
+- Hecho: portada con escena 3D de fondo, tres tarjetas de modo, rutas por hash, briefing y ayuda «?». Pendiente: selector de idioma ES/EN.
 - Portada con presentación (qué es, para quién, qué aprende), vista 3D animada de fondo o captura en vivo, botones "Comenzar turno", "Ver demo" y "Checklist de ronda", competencias que se trabajan, marco normativo, créditos y licencia.
 - Selector de idioma ES/EN (el diccionario del punto 0 lo permite); traducir primero la interfaz y luego los escenarios.
 

@@ -322,10 +322,13 @@ export function createScene(container, handlers) {
   let anim = null; // función por frame (now) → true cuando termina
   let busy = false; // transición sala ↔ detalle o frente ↔ trasera en curso
   function run(ms, step, done, ease = easeInOut) {
-    let start = null; // se toma del primer frame para no mezclar relojes
+    // tiempo acumulado con pasos acotados: si un cuadro se demora (p. ej. al compilar
+    // los shaders de la vista de detalle), la animación no salta al final
+    let last = null, elapsed = 0;
     anim = (now) => {
-      if (start === null) start = now;
-      const k = ms <= 0 ? 1 : Math.min(1, (now - start) / ms);
+      if (last === null) last = now;
+      elapsed += Math.min(50, Math.max(0, now - last)); last = now;
+      const k = ms <= 0 ? 1 : Math.min(1, elapsed / ms);
       step(ease(k), k);
       if (k >= 1) { anim = null; if (done) done(); }
     };
@@ -373,7 +376,14 @@ export function createScene(container, handlers) {
     if (!w || !h) return;
     renderer.setSize(w, h, false);
     renderer.domElement.style.width = w + 'px'; renderer.domElement.style.height = h + 'px';
-    camera.aspect = w / h; camera.updateProjectionMatrix();
+    camera.aspect = w / h; applyShift();
+  }
+  // desplazamiento horizontal del encuadre (portada: la sala queda a la derecha del texto)
+  let viewShift = 0;
+  function applyShift() {
+    const w = container.clientWidth, h = container.clientHeight;
+    if (viewShift && w && h) camera.setViewOffset(w, h, -viewShift * w, 0, w, h); else camera.clearViewOffset();
+    camera.updateProjectionMatrix();
   }
   new ResizeObserver(resize).observe(container);
   resize();
@@ -467,6 +477,31 @@ export function createScene(container, handlers) {
   const sideTheta = (sd) => (sd === 'front' ? 0 : Math.PI);
 
   // trayectoria con un arco vertical suave: pasa por sobre los racks (2 m) en vez de atravesarlos
+  // ---------- Portada: órbita lenta de fondo y entrada a la sala ----------------------------
+  const LANDING_POS = new THREE.Vector3(9.2, 5.6, 8.4), LANDING_SHIFT = 0.2;
+  let landing = false;
+  function setLanding(on, done) {
+    if (on) {
+      if (detail) { exitRack(() => setLanding(true, done)); return; }
+      landing = true; anim = null;
+      controls.enabled = false;
+      camera.position.copy(LANDING_POS); controls.target.copy(CENTER);
+      viewShift = LANDING_SHIFT; applyShift();
+      controls.autoRotate = !reduceMotion.matches; controls.autoRotateSpeed = 0.35;
+      if (done) done();
+      return;
+    }
+    if (!landing) { if (done) done(); return; }
+    landing = false;
+    controls.autoRotate = false;
+    setBusy(true);
+    const [pos, tgt] = VIEWS.iso;
+    const finish = () => { viewShift = 0; applyShift(); controls.autoRotate = autoRotate; setBusy(false); if (done) done(); };
+    if (reduceMotion.matches) { fadeCut(() => { camera.position.copy(pos); controls.target.copy(tgt); viewShift = 0; applyShift(); controls.update(); }, finish); return; }
+    const p0 = camera.position.clone(), t0 = controls.target.clone();
+    run(1400, (e) => { arcLerp(p0, pos, e); controls.target.lerpVectors(t0, tgt, e); viewShift = LANDING_SHIFT * (1 - e); applyShift(); }, finish);
+  }
+
   function arcLerp(a, b, e) {
     camera.position.lerpVectors(a, b, e);
     const lift = Math.max(0, 2.8 - (a.y + b.y) / 2); // el punto medio queda sobre los 2 m de los racks
@@ -640,7 +675,8 @@ export function createScene(container, handlers) {
   let autoRotate = false;
   return {
     update(w, m, sev) { world = w; mode = m; sevMap = sev; sync(); },
-    setView, focus, select, enterRack, exitRack, rackSide, focusDevice,
+    setView, focus, select, enterRack, exitRack, rackSide, focusDevice, setLanding,
+    get landing() { return landing; },
     get detail() { return detail; },
     get busy() { return busy; },
     toggleRotate() { autoRotate = !autoRotate; if (!detail) controls.autoRotate = autoRotate; controls.autoRotateSpeed = 0.8; return autoRotate; },

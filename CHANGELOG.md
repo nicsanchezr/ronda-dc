@@ -2,6 +2,20 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). Versiones según [SemVer](https://semver.org/lang/es/).
 
+## [Sin publicar]
+
+### Agregado
+- **Portada propia** con la escena 3D girando de fondo: logotipo, nombre y subtítulo, tres tarjetas de modo (Turno disponible; Checklist de ronda y Demo próximamente) con descripción, duración estimada y botón; qué se aprende, marco de referencia, último puntaje guardado, créditos, licencia y enlace al repositorio. En claro y oscuro.
+- **Rutas por hash**: `#turno`, `#checklist`, `#demo` (y la portada sin hash). El logotipo vuelve a la portada; volver a Turno continúa el turno en curso.
+- **Entrada a la sala** sin modal: la cámara vuela desde la órbita de la portada hasta la sala mientras aparecen la cabecera y el panel.
+- **Briefing** breve antes del turno y **panel de ayuda «?»** disponible en cualquier momento (pausa el reloj mientras está abierto).
+- Botón «Volver a la portada» en el fin de turno.
+
+### Corregido
+- Las animaciones de cámara avanzan con pasos de cuadro acotados: si un cuadro se demora (por ejemplo, al compilar los shaders de la vista de detalle en un equipo lento), la transición ya no salta al final ni libera los clics antes de tiempo.
+- El panel de Tema ya no queda tapado por el panel lateral después de entrar desde la portada.
+- La cabecera no se parte en dos líneas a 1280 px con el tema Alto rendimiento.
+
 ## [0.2.1] · 2026-11-15
 
 ### Corregido
@@ -44,6 +58,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). V
 - Dinámica de la sala: temperatura por falla de climatización, carga de PDU con disparo, fuga que crece; impactos por acciones críticas.
 - Fin de turno con puntaje, MTTA, MTTR, disponibilidad e informe de relevo en Markdown.
 
+[Sin publicar]: https://github.com/nicsanchezr/ronda-dc/compare/v0.2.1...main
 [0.2.1]: https://github.com/nicsanchezr/ronda-dc/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/nicsanchezr/ronda-dc/compare/11343d3...v0.2.0
 [0.1.0]: https://github.com/nicsanchezr/ronda-dc/commit/11343d3
