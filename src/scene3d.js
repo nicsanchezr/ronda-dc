@@ -1,89 +1,29 @@
-// Escena 3D de la sala con Three.js
+// Escena 3D de la sala con Three.js. Todos los colores, luces y texturas vienen
+// del tema activo a través del adaptador (src/themes/three.js).
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { RACKS, SEV } from './scenario.js';
+import { RACKS } from './scenario.js';
 import { deviceState, rackMaxInlet, fmt1 } from './sim.js';
 import { createRackView } from './rackview.js';
 import { fadeRecord, setFade, collectMaterials, easeInOut, smoothstep } from './fade.js';
+import { createThemeBinder, heatColor } from './themes/three.js';
+import { getTokens } from './themes/index.js';
+import { priorityOf, drawStatusIcon } from './status.js';
 
 const U = 0.0445;
 const RW = 0.6, RD = 1.1, RH = 2.0;
 const PITCH = 0.62;
 
-export function heatColor(t) {
-  const stops = [[18, 0x3b82f6], [24, 0x22c55e], [30, 0xeab308], [36, 0xf97316], [42, 0xef4444]];
-  if (t <= stops[0][0]) return new THREE.Color(stops[0][1]);
-  for (let i = 1; i < stops.length; i++) {
-    if (t <= stops[i][0]) {
-      const [t0, c0] = stops[i - 1], [t1, c1] = stops[i];
-      return new THREE.Color(c0).lerp(new THREE.Color(c1), (t - t0) / (t1 - t0));
-    }
-  }
-  return new THREE.Color(stops[stops.length - 1][1]);
-}
-
-function labelSprite(text, opts = {}) {
-  const c = document.createElement('canvas');
-  c.width = 256; c.height = 96;
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true });
-  const s = new THREE.Sprite(mat);
-  s.scale.set(opts.w || 0.5, (opts.w || 0.5) * 0.375, 1);
-  s.renderOrder = 10;
-  s.userData.draw = (txt, sub) => {
-    const g = c.getContext('2d');
-    g.clearRect(0, 0, 256, 96);
-    g.fillStyle = 'rgba(14,17,24,0.82)';
-    const r = 18; const w = 236, h = sub ? 84 : 56, x = 10, y = sub ? 6 : 20;
-    g.beginPath(); g.roundRect(x, y, w, h, r); g.fill();
-    g.strokeStyle = 'rgba(255,255,255,0.12)'; g.lineWidth = 2; g.stroke();
-    g.fillStyle = '#e8ecf4'; g.font = '600 38px ui-sans-serif, system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(txt, 128, sub ? 36 : 48);
-    if (sub) { g.fillStyle = '#9aa4b8'; g.font = '500 28px ui-monospace, monospace'; g.fillText(sub, 128, 70); }
-    tex.needsUpdate = true;
-  };
-  s.userData.draw(text);
-  return s;
-}
-
-function perforatedTexture() {
-  const c = document.createElement('canvas'); c.width = c.height = 128;
-  const g = c.getContext('2d');
-  g.fillStyle = '#3d6fb0'; g.fillRect(0, 0, 128, 128);
-  g.strokeStyle = '#2a4f86'; g.lineWidth = 6; g.strokeRect(0, 0, 128, 128);
-  g.fillStyle = '#2b5288';
-  for (let y = 14; y < 120; y += 12) for (let x = 14; x < 120; x += 12) { g.beginPath(); g.arc(x, y, 3, 0, Math.PI * 2); g.fill(); }
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
-}
-function tileTexture() {
-  const c = document.createElement('canvas'); c.width = c.height = 128;
-  const g = c.getContext('2d');
-  g.fillStyle = '#2a303c'; g.fillRect(0, 0, 128, 128);
-  g.strokeStyle = '#1c2029'; g.lineWidth = 4; g.strokeRect(0, 0, 128, 128);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-  t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
-}
-function grilleTexture(label) {
-  const c = document.createElement('canvas'); c.width = 256; c.height = 280;
-  const g = c.getContext('2d');
-  g.fillStyle = '#2e3646'; g.fillRect(0, 0, 256, 280);
-  g.fillStyle = '#232a37';
-  for (let y = 70; y < 270; y += 10) g.fillRect(16, y, 224, 5);
-  g.fillStyle = '#121620'; g.fillRect(16, 14, 110, 40);
-  g.fillStyle = '#cfd6e4'; g.font = '600 26px ui-sans-serif, system-ui'; g.fillText(label, 140, 44);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
-}
-
 export function createScene(container, handlers) {
+  const TB = createThemeBinder();
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.setClearColor(0x161a22);
   container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0x161a22, 14, 26);
+  scene.fog = new THREE.Fog(getTokens().scene.fog, 14, 26);
+  TB.on((T) => { renderer.setClearColor(T.scene.clear); scene.fog.color.set(T.scene.fog); });
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
   const CENTER = new THREE.Vector3(1.24, 0.7, 0);
   const controls = new OrbitControls(camera, renderer.domElement);
@@ -92,23 +32,100 @@ export function createScene(container, handlers) {
   controls.maxPolarAngle = Math.PI * 0.49;
   controls.minDistance = 2.2; controls.maxDistance = 16;
 
-  scene.add(new THREE.HemisphereLight(0xcfd8ff, 0x20242e, 1.1));
-  const dir = new THREE.DirectionalLight(0xffffff, 1.4); dir.position.set(4, 8, 5); scene.add(dir);
-  const dir2 = new THREE.DirectionalLight(0x8fb3ff, 0.5); dir2.position.set(-5, 4, -6); scene.add(dir2);
+  const hemi = new THREE.HemisphereLight(); scene.add(hemi);
+  const dir = new THREE.DirectionalLight(); dir.position.set(4, 8, 5); scene.add(dir);
+  const dir2 = new THREE.DirectionalLight(); dir2.position.set(-5, 4, -6); scene.add(dir2);
+  TB.on((T) => {
+    const S = T.scene;
+    hemi.color.set(S.hemiSky); hemi.groundColor.set(S.hemiGround); hemi.intensity = S.hemiInt;
+    dir.color.set(S.hemiSky); dir.intensity = S.keyInt;
+    dir2.color.set(S.fillColor); dir2.intensity = S.fillInt;
+  });
+
+  // Etiquetas (sprites) con los colores del tema
+  const labels = [];
+  function labelSprite(text, opts = {}) {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 96;
+    const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+    s.scale.set(opts.w || 0.5, (opts.w || 0.5) * 0.375, 1);
+    s.renderOrder = 10;
+    let args = [text];
+    s.userData.draw = (txt, sub) => {
+      args = [txt, sub];
+      const L = getTokens().scene.label, F = getTokens().fonts;
+      const g = c.getContext('2d');
+      g.clearRect(0, 0, 256, 96);
+      g.fillStyle = L.bg;
+      const w = 236, h = sub ? 84 : 56, x = 10, y = sub ? 6 : 20;
+      g.beginPath(); g.roundRect(x, y, w, h, 14); g.fill();
+      g.strokeStyle = L.border; g.lineWidth = 2; g.stroke();
+      g.fillStyle = L.txt; g.font = `600 40px ${F.head}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(txt, 128, sub ? 36 : 48);
+      if (sub) { g.fillStyle = L.sub; g.font = `500 28px ${F.mono}`; g.fillText(sub, 128, 70); }
+      tex.needsUpdate = true;
+    };
+    s.userData.redraw = () => s.userData.draw(...args);
+    s.userData.draw(text);
+    labels.push(s);
+    return s;
+  }
+  TB.on(() => labels.forEach((l) => l.userData.redraw()));
+
+  // Texturas del piso y de los CRAC
+  const tileTex = TB.canvas(128, 128, (g, T) => {
+    g.fillStyle = T.scene.floor; g.fillRect(0, 0, 128, 128);
+    g.strokeStyle = T.scene.floorJoint; g.lineWidth = 4; g.strokeRect(0, 0, 128, 128);
+  }, (t) => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(16, 13); });
+  const perfTex = TB.canvas(128, 128, (g, T) => {
+    g.fillStyle = T.scene.perf; g.fillRect(0, 0, 128, 128);
+    g.strokeStyle = T.scene.perfJoint; g.lineWidth = 6; g.strokeRect(0, 0, 128, 128);
+    g.fillStyle = T.scene.perfHole;
+    for (let y = 14; y < 120; y += 12) for (let x = 14; x < 120; x += 12) { g.beginPath(); g.arc(x, y, 3, 0, Math.PI * 2); g.fill(); }
+  });
+  const grilleTex = (label) => TB.canvas(256, 280, (g, T) => {
+    const S = T.scene;
+    g.fillStyle = S.cracGrille; g.fillRect(0, 0, 256, 280);
+    g.fillStyle = S.cracSlat;
+    for (let y = 70; y < 270; y += 10) g.fillRect(16, y, 224, 5);
+    g.fillStyle = S.cracPanel; g.fillRect(16, 14, 110, 40);
+    g.fillStyle = S.cracText; g.font = `600 22px ${T.fonts.mono}`; g.textBaseline = 'middle'; g.fillText(label, 24, 35);
+  });
+  // degradado radial para los halos (máscara; el color lo da el material)
+  const rgba = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
+  const haloTex = TB.canvas(128, 128, (g, T) => {
+    g.clearRect(0, 0, 128, 128);
+    const gr = g.createRadialGradient(64, 64, 10, 64, 64, 63);
+    gr.addColorStop(0, rgba(T.mask, 0.9)); gr.addColorStop(0.65, rgba(T.mask, 0.55)); gr.addColorStop(1, rgba(T.mask, 0));
+    g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+  });
+  const std = (opts) => new THREE.MeshStandardMaterial(opts);
 
   // Piso técnico
-  const tt = tileTexture(); tt.repeat.set(16, 13);
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(9.6, 7.8), new THREE.MeshStandardMaterial({ map: tt, roughness: 0.9 }));
+  const floorMat = std({ map: tileTex, roughness: 0.9 });
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(9.6, 7.8), floorMat);
   floor.userData.noFade = true;
   floor.rotation.x = -Math.PI / 2; floor.position.set(1.24, 0, 0); scene.add(floor);
-  const perf = new THREE.MeshStandardMaterial({ map: perforatedTexture(), roughness: 0.7, emissive: 0x0b2346, emissiveIntensity: 0.6 });
   for (let i = 0; i < 5; i++) for (let j = 0; j < 2; j++) {
-    const p = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 0.58), perf);
+    const m = std({ map: perfTex, roughness: 0.7, emissiveIntensity: 0.6 });
+    TB.color(m, (T) => T.scene.perfGlow, 'emissive');
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 0.58), m);
     p.rotation.x = -Math.PI / 2; p.position.set(i * PITCH, 0.003, -0.3 + j * 0.6); scene.add(p);
   }
 
   const pickables = [];
   const racks = {};
+
+  // Contorno de alarma: 12 barras finas sobre las aristas del rack
+  function outlineGroup(mat) {
+    const g = new THREE.Group();
+    const t = 0.016, w = RW + 0.03, h = RH + 0.03, d = RD + 0.03;
+    const bar = (sx, sy, sz, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat); m.position.set(x, y, z); g.add(m); };
+    for (const y of [0.01, h]) for (const z of [-d / 2, d / 2]) bar(w, t, t, 0, y, z);
+    for (const y of [0.01, h]) for (const x of [-w / 2, w / 2]) bar(t, t, d, x, y, 0);
+    for (const x of [-w / 2, w / 2]) for (const z of [-d / 2, d / 2]) bar(t, h, t, x, h / 2, z);
+    return g;
+  }
 
   // Racks
   RACKS.forEach((def) => {
@@ -116,70 +133,83 @@ export function createScene(container, handlers) {
     const g = new THREE.Group();
     if (def.row === 'A') { g.position.set((idx - 1) * PITCH, 0, -(0.6 + RD / 2)); }
     else { g.position.set((10 - idx) * PITCH, 0, 0.6 + RD / 2); g.rotation.y = Math.PI; }
-    const bodyMat = new THREE.MeshStandardMaterial({ color: 0x1b202b, roughness: 0.55, metalness: 0.35, emissive: 0x000000 });
+    const bodyMat = std({ roughness: 0.55, metalness: 0.3 });
+    TB.color(bodyMat, (T) => T.scene.rack);
     const body = new THREE.Mesh(new THREE.BoxGeometry(RW, RH, RD), bodyMat);
     body.position.y = RH / 2; g.add(body);
     // marco frontal
-    const inner = new THREE.Mesh(new THREE.PlaneGeometry(RW - 0.08, 42 * U), new THREE.MeshStandardMaterial({ color: 0x0b0d12, roughness: 1 }));
+    const innerMat = std({ roughness: 1 }); TB.color(innerMat, (T) => T.scene.rackInner);
+    const inner = new THREE.Mesh(new THREE.PlaneGeometry(RW - 0.08, 42 * U), innerMat);
     inner.position.set(0, 0.06 + 21 * U, RD / 2 + 0.002); g.add(inner);
     const devs = {};
     def.devices.forEach((d) => {
       const h = d.h * U - 0.004;
-      const m = new THREE.Mesh(new THREE.BoxGeometry(RW - 0.1, h, 0.02), new THREE.MeshStandardMaterial({ color: d.type === 'patch' ? 0x20242d : d.type === 'storage' ? 0x313a4c : 0x2a3140, roughness: 0.6, metalness: 0.3 }));
+      const dm = std({ roughness: 0.6, metalness: 0.3 }); TB.color(dm, (T) => T.scene.dev[d.type] || T.scene.dev.server);
+      const m = new THREE.Mesh(new THREE.BoxGeometry(RW - 0.1, h, 0.02), dm);
       const y = 0.06 + (d.u - 1) * U + (d.h * U) / 2;
       m.position.set(0, y, RD / 2 + 0.012); g.add(m);
-      const led = new THREE.Mesh(new THREE.BoxGeometry(0.035, Math.min(0.022, h * 0.6), 0.008), new THREE.MeshBasicMaterial({ color: 0x30c48d }));
+      const led = new THREE.Mesh(new THREE.BoxGeometry(0.035, Math.min(0.022, h * 0.6), 0.008), new THREE.MeshBasicMaterial());
       led.position.set(RW / 2 - 0.09, y, RD / 2 + 0.024); g.add(led);
       const led2 = led.clone(); led2.material = led.material; led2.position.x = -RW / 2 + 0.09; g.add(led2);
       devs[d.name] = { led, def: d };
     });
-    // panel ciego faltante (hueco con brillo)
+    // panel ciego faltante (hueco con brillo en modo calor)
     let gapGlow = null;
     if (def.gap) {
       const [a, b] = def.gap;
-      gapGlow = new THREE.Mesh(new THREE.PlaneGeometry(RW - 0.1, (b - a + 1) * U), new THREE.MeshBasicMaterial({ color: 0xff7a1a, transparent: true, opacity: 0 }));
+      const gm = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }); TB.color(gm, (T) => T.scene.gapGlow);
+      gapGlow = new THREE.Mesh(new THREE.PlaneGeometry(RW - 0.1, (b - a + 1) * U), gm);
       gapGlow.position.set(0, 0.06 + (a - 1) * U + ((b - a + 1) * U) / 2, RD / 2 + 0.004); g.add(gapGlow);
     }
-    // barra de estado superior frontal
-    const bar = new THREE.Mesh(new THREE.BoxGeometry(RW, 0.035, 0.035), new THREE.MeshBasicMaterial({ color: 0x30c48d }));
-    bar.position.set(0, RH + 0.02, RD / 2 - 0.02); g.add(bar);
+    // estado: contorno + ícono de prioridad (+ halo en el piso si el tema lo usa)
+    const outlineMat = new THREE.MeshBasicMaterial();
+    const outline = outlineGroup(outlineMat); outline.visible = false; g.add(outline);
+    const iconCanvas = document.createElement('canvas'); iconCanvas.width = iconCanvas.height = 128;
+    const iconTex = new THREE.CanvasTexture(iconCanvas); iconTex.colorSpace = THREE.SRGBColorSpace;
+    const icon = new THREE.Sprite(new THREE.SpriteMaterial({ map: iconTex, depthTest: false, transparent: true }));
+    icon.scale.set(0.36, 0.36, 1); icon.position.set(0, RH + 0.62, 0); icon.renderOrder = 11; icon.visible = false; g.add(icon);
+    const haloMat = new THREE.MeshBasicMaterial({ map: haloTex, transparent: true, opacity: 0.55, depthWrite: false });
+    const halo = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), haloMat);
+    halo.rotation.x = -Math.PI / 2; halo.scale.set(1.15, 1.75, 1); halo.position.y = 0.006; halo.visible = false; g.add(halo);
     // puerta trasera con bisagra
     const hinge = new THREE.Group(); hinge.position.set(RW / 2, RH / 2, -RD / 2 - 0.012); g.add(hinge);
-    const door = new THREE.Mesh(new THREE.BoxGeometry(RW, RH - 0.04, 0.02), new THREE.MeshStandardMaterial({ color: 0x232936, roughness: 0.5, metalness: 0.4 }));
+    const doorMat = std({ roughness: 0.5, metalness: 0.35 }); TB.color(doorMat, (T) => T.scene.rackDoor);
+    const door = new THREE.Mesh(new THREE.BoxGeometry(RW, RH - 0.04, 0.02), doorMat);
     door.position.x = -RW / 2; hinge.add(door);
     // sensor de entrada superior
-    const sensor = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.035, 0.02), new THREE.MeshStandardMaterial({ color: 0xe9eef7, emissive: 0x334455 }));
+    const sensorMat = std({}); TB.color(sensorMat, (T) => T.scene.sensor); TB.color(sensorMat, (T) => T.scene.sensorGlow, 'emissive');
+    const sensor = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.035, 0.02), sensorMat);
     sensor.position.set(RW / 2 - 0.06, 1.86, RD / 2 + 0.03); g.add(sensor);
     // cable de consola (R02)
     let cable = null;
     if (def.id === 'R02') {
       const curve = new THREE.CatmullRomCurve3([new THREE.Vector3(0.12, 0.06 + 35.5 * U, -RD / 2 + 0.05), new THREE.Vector3(0.2, 1.2, -RD / 2 - 0.15), new THREE.Vector3(0.1, 0.35, -RD / 2 - 0.35), new THREE.Vector3(0.0, 0.01, -RD / 2 - 0.55)]);
-      cable = new THREE.Mesh(new THREE.TubeGeometry(curve, 30, 0.008, 6), new THREE.MeshStandardMaterial({ color: 0x3b82f6, emissive: 0x13306a }));
+      const cm = std({}); TB.color(cm, (T) => T.scene.cable); TB.color(cm, (T) => T.scene.cableGlow, 'emissive');
+      cable = new THREE.Mesh(new THREE.TubeGeometry(curve, 30, 0.008, 6), cm);
       cable.visible = false; g.add(cable);
     }
-    // logotipo en el costado de los extremos
     const label = labelSprite(def.id, { w: 0.55 });
     label.position.set(0, RH + 0.26, RD / 2 - 0.1); g.add(label);
 
     body.userData = { kind: 'rack', id: def.id };
     pickables.push(body);
-    g.traverse((o) => { if (o.isMesh && o !== body) o.userData = { kind: 'rack', id: def.id }; if (o.isMesh && o !== label) pickables.push(o); });
+    g.traverse((o) => { if (o.isMesh && o !== body) o.userData = { kind: 'rack', id: def.id }; if (o.isMesh && o !== label && o !== halo && !outline.children.includes(o)) pickables.push(o); });
     scene.add(g);
-    racks[def.id] = { g, bodyMat, bar, hinge, sensor, devs, gapGlow, label, cable, lastLabel: '' };
+    racks[def.id] = { g, bodyMat, outline, outlineMat, icon, iconCanvas, iconTex, iconKey: '', halo, haloMat, hinge, sensor, devs, gapGlow, label, cable, lastLabel: '' };
   });
 
   // CRAC
   const cracs = {};
   [['CRAC-1', -3.05], ['CRAC-2', 3.05]].forEach(([id, z]) => {
-    const tex = grilleTexture(id);
-    const mats = [0, 0, 0, 0, 0, 0].map(() => new THREE.MeshStandardMaterial({ color: 0x2e3646, roughness: 0.6, metalness: 0.3 }));
-    const front = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6, metalness: 0.2, emissive: 0x000000 });
+    const tex = grilleTex(id);
+    const mats = [0, 0, 0, 0, 0, 0].map(() => { const m = std({ roughness: 0.6, metalness: 0.3 }); TB.color(m, (T) => T.scene.crac); return m; });
+    const front = std({ map: tex, roughness: 0.6, metalness: 0.2 });
     if (z < 0) mats[4] = front; else mats[5] = front;
     const m = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.95, 0.85), mats);
     m.position.set(1.24, 0.975, z); scene.add(m);
     m.userData = { kind: 'crac', id };
     pickables.push(m);
-    const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.06, 0.02), new THREE.MeshBasicMaterial({ color: 0x30c48d }));
+    const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.06, 0.02), new THREE.MeshBasicMaterial());
     lamp.position.set(1.24 + 0.75, 1.75, z + (z < 0 ? 0.43 : -0.43)); scene.add(lamp);
     lamp.userData = m.userData; pickables.push(lamp);
     const lbl = labelSprite(id, { w: 0.7 }); lbl.position.set(1.24, 2.25, z); scene.add(lbl);
@@ -189,10 +219,11 @@ export function createScene(container, handlers) {
   // UPS
   const upss = {};
   [['UPS-A', -1.15], ['UPS-B', 1.15]].forEach(([id, z]) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.9, 1.0), new THREE.MeshStandardMaterial({ color: 0x283142, roughness: 0.55, metalness: 0.35 }));
+    const um = std({ roughness: 0.55, metalness: 0.3 }); TB.color(um, (T) => T.scene.ups);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.9, 1.0), um);
     m.position.set(-1.55, 0.95, z); scene.add(m);
     m.userData = { kind: 'ups', id }; pickables.push(m);
-    const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.28, 0.16), new THREE.MeshBasicMaterial({ color: 0x30c48d }));
+    const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.28, 0.16), new THREE.MeshBasicMaterial());
     scr.position.set(-1.55 + 0.401, 1.5, z); scr.rotation.y = Math.PI / 2; scene.add(scr);
     scr.userData = m.userData; pickables.push(scr);
     const lbl = labelSprite(id, { w: 0.6 }); lbl.position.set(-1.55, 2.2, z); scene.add(lbl);
@@ -200,35 +231,41 @@ export function createScene(container, handlers) {
   });
 
   // Contención del pasillo frío (puertas de vidrio) y lector de acceso
-  const glass = new THREE.MeshStandardMaterial({ color: 0x9fc1ff, transparent: true, opacity: 0.12, roughness: 0.1, metalness: 0.1, depthWrite: false });
+  const glassMat = () => { const m = std({ transparent: true, opacity: 0.14, roughness: 0.1, metalness: 0.1, depthWrite: false }); TB.color(m, (T) => T.scene.glass); return m; };
   [-0.33, 4 * PITCH + 0.33].forEach((x) => {
-    const p = new THREE.Mesh(new THREE.BoxGeometry(0.02, RH, 1.2), glass);
+    const p = new THREE.Mesh(new THREE.BoxGeometry(0.02, RH, 1.2), glassMat());
     p.position.set(x, RH / 2, 0); scene.add(p);
-    const fr = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 1.2), new THREE.MeshStandardMaterial({ color: 0x5d6779 }));
+    const fm = std({}); TB.color(fm, (T) => T.scene.glassFrame);
+    const fr = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 1.2), fm);
     fr.position.set(x, RH, 0); scene.add(fr);
   });
-  const roof = new THREE.Mesh(new THREE.BoxGeometry(4 * PITCH + 0.66, 0.02, 1.2), glass);
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(4 * PITCH + 0.66, 0.02, 1.2), glassMat());
   roof.position.set(2 * PITCH, RH + 0.01, 0); scene.add(roof);
-  const acs = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.16, 0.1), new THREE.MeshStandardMaterial({ color: 0x1e2430, emissive: 0x0a3d2a }));
+  const acsMat = std({}); TB.color(acsMat, (T) => T.scene.acs); TB.color(acsMat, (T) => T.scene.acsGlow, 'emissive');
+  const acs = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.16, 0.1), acsMat);
   acs.position.set(4 * PITCH + 0.36, 1.25, 0.66); scene.add(acs);
   acs.userData = { kind: 'acs', id: 'ACS' }; pickables.push(acs);
-  const acsLed = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.03, 0.03), new THREE.MeshBasicMaterial({ color: 0x30c48d }));
+  const acsLedMat = new THREE.MeshBasicMaterial(); TB.color(acsLedMat, (T) => T.led.on);
+  const acsLed = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.03, 0.03), acsLedMat);
   acsLed.position.set(4 * PITCH + 0.385, 1.3, 0.66); scene.add(acsLed);
 
   // Zona de detección de fugas (junto a CRAC-1)
-  const leakZone = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.6), new THREE.MeshBasicMaterial({ color: 0xf5c518, transparent: true, opacity: 0.0, depthWrite: false }));
-
+  const leakMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.0, depthWrite: false }); TB.color(leakMat, (T) => T.scene.leak);
+  const leakZone = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.6), leakMat);
   leakZone.rotation.x = -Math.PI / 2; leakZone.position.set(1.24, 0.004, -2.33); scene.add(leakZone);
   leakZone.userData = { kind: 'leak', id: 'LEAK-Z3', noFade: true }; pickables.push(leakZone);
-  const rope = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.006, 0.012), new THREE.MeshBasicMaterial({ color: 0xc9a227 }));
+  const ropeMat = new THREE.MeshBasicMaterial(); TB.color(ropeMat, (T) => T.scene.rope);
+  const rope = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.006, 0.012), ropeMat);
   rope.position.set(1.24, 0.006, -2.45); scene.add(rope);
   rope.userData = leakZone.userData; pickables.push(rope);
-  const water = new THREE.Mesh(new THREE.CircleGeometry(1, 40), new THREE.MeshStandardMaterial({ color: 0x4aa3ff, transparent: true, opacity: 0.55, roughness: 0.05, metalness: 0.2, depthWrite: false }));
+  const waterMat = std({ transparent: true, opacity: 0.55, roughness: 0.05, metalness: 0.2, depthWrite: false }); TB.color(waterMat, (T) => T.scene.water);
+  const water = new THREE.Mesh(new THREE.CircleGeometry(1, 40), waterMat);
   water.rotation.x = -Math.PI / 2; water.position.set(0.7, 0.007, -2.42); water.visible = false; scene.add(water);
   water.userData = leakZone.userData; pickables.push(water);
 
   // Selección
-  const selBox = new THREE.BoxHelper(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1)), 0x6b9bff);
+  const selBox = new THREE.BoxHelper(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1)));
+  TB.color(selBox.material, (T) => T.scene.select);
   selBox.visible = false; scene.add(selBox);
   let selected = null;
 
@@ -414,6 +451,13 @@ export function createScene(container, handlers) {
   // ---------- Vista de detalle del rack -------------------------------------------------
   const RV = createRackView(scene);
   let detail = null, roomCam = null, side = 'front';
+  // al cambiar de tema, la vista de detalle abierta se reconstruye con los nuevos colores
+  TB.on(() => {
+    if (!detail || !RV.root || !world) return;
+    const R = racks[detail];
+    RV.build(detail, world, { position: R.g.position, quaternion: R.g.quaternion });
+    RV.setOpacity(smoothstep(0.2, 1, p));
+  });
   const ENTER_MS = 950, SIDE_MS = 900;
   // en coordenadas del rack: el rack queda a la derecha del centro para no quedar bajo el inspector
   const R_CAM = 3.7, CAM_Y = 1.2, TGT_Y = 1.0, TGT_X = 0.32;
@@ -468,7 +512,9 @@ export function createScene(container, handlers) {
       RV.clear(); detail = null; p = 0; resetContext();
       controls.minDistance = 2.2; controls.maxDistance = 16; controls.maxPolarAngle = Math.PI * 0.49;
       controls.autoRotate = autoRotate;
-      setBusy(false); if (done) done();
+      setBusy(false);
+      if (handlers.onDetailEnd) handlers.onDetailEnd(); // la UI se actualiza ya fuera del detalle
+      if (done) done();
     };
     if (reduceMotion.matches) {
       fadeCut(() => { camera.position.copy(back.pos); controls.target.copy(back.target); controls.update(); }, finish);
@@ -512,30 +558,44 @@ export function createScene(container, handlers) {
   }
 
   let world = null, mode = 'estado', sevMap = {}, pulse = 0;
-  const C = (hex) => new THREE.Color(hex);
-  const LED = { ok: C(0x30c48d), warn: C(0xf5c518), crit: C(0xe5484d), down: C(0x14171d), off: C(0x2a2f39) };
 
   function sync() {
     if (!world) return;
     if (detail) RV.sync(world);
+    const T = getTokens();
     for (const def of RACKS) {
       const R = racks[def.id], rk = world.racks[def.id];
       const real = rackMaxInlet(world, def.id);
       const sev = sevMap[def.id] || 'ok';
+      const prio = priorityOf(sev);
+      // estado: contorno + ícono de prioridad (en todos los temas)
+      R.outline.visible = prio > 0;
+      R.icon.visible = prio > 0;
+      if (prio > 0) {
+        R.outlineMat.color.set(T.sev[sev]);
+        const key = sev + T.id + T.mode;
+        if (R.iconKey !== key) {
+          const g = R.iconCanvas.getContext('2d'); g.clearRect(0, 0, 128, 128);
+          drawStatusIcon(g, 64, 64, 34, sev, T.sev[sev], T.onSev[sev], T.ui.bg2);
+          R.iconTex.needsUpdate = true; R.iconKey = key;
+        }
+      }
       if (mode === 'calor') {
-        const hc = heatColor(real);
-        R.bar.material.color.copy(hc);
+        const hc = heatColor(T, real);
         R.bodyMat.emissive.copy(hc).multiplyScalar(0.28);
+        R.halo.visible = true; R.haloMat.color.copy(hc);
         const txt = def.id + '|' + fmt1(real) + '°';
         if (R.lastLabel !== txt) { R.label.userData.draw(def.id, fmt1(real) + ' °C'); R.lastLabel = txt; }
       } else {
-        R.bar.material.color.set(SEV[sev].color);
-        R.bodyMat.emissive.setHex(sev !== 'ok' && sev !== 'info' ? new THREE.Color(SEV[sev].color).multiplyScalar(0.12).getHex() : 0x000000);
+        R.bodyMat.emissive.set(prio > 0 ? new THREE.Color(T.sev[sev]).multiplyScalar(0.1) : new THREE.Color(0, 0, 0));
+        // halo en el piso: refuerzo del ícono, solo si el tema lo usa
+        R.halo.visible = !!T.scene.halo && prio > 0 && prio < 3;
+        if (R.halo.visible) R.haloMat.color.set(T.sev[sev]);
         if (R.lastLabel !== def.id) { R.label.userData.draw(def.id); R.lastLabel = def.id; }
       }
       for (const name in R.devs) {
         const st = deviceState(world, def.id, R.devs[name].def);
-        R.devs[name].led.material.color.copy(LED[st] || LED.ok);
+        R.devs[name].led.material.color.set({ ok: T.led.on, warn: T.led.warn, crit: T.led.crit, down: T.led.off, off: T.led.off }[st] || T.led.on);
       }
       R.hinge.rotation.y = rk.rearOpen ? -1.75 : 0;
       if (R.cable) R.cable.visible = !!world.flags.cable;
@@ -547,9 +607,10 @@ export function createScene(container, handlers) {
       if (R.gapGlow) R.gapGlow.visible = rk.gap && p < 0.01;
     }
     const c2 = world.flags.crac2Down;
-    cracs['CRAC-2'].lamp.material.color.setHex(c2 ? 0xe5484d : 0x30c48d);
-    cracs['CRAC-1'].lamp.material.color.setHex(world.crac[1].off ? 0xe5484d : 0x30c48d);
-    upss['UPS-A'].scr.material.color.setHex(world.ups.A.mode === 'battery' ? 0xf5c518 : 0x30c48d);
+    cracs['CRAC-2'].lamp.material.color.set(c2 ? T.led.crit : T.led.on);
+    cracs['CRAC-1'].lamp.material.color.set(world.crac[1].off ? T.led.crit : T.led.on);
+    upss['UPS-A'].scr.material.color.set(world.ups.A.mode === 'battery' ? T.led.warn : T.led.on);
+    upss['UPS-B'].scr.material.color.set(T.led.on);
     water.visible = world.leak.active;
     water.scale.setScalar(Math.max(0.05, world.leak.radius));
   }
@@ -560,12 +621,12 @@ export function createScene(container, handlers) {
     pulse = (Math.sin(now / 260) + 1) / 2;
     if (world) {
       leakZone.material.opacity = world.leak.active ? (0.15 + 0.25 * pulse) * (1 - 0.6 * p) : 0.0;
-      if (world.flags.crac2Down) cracs['CRAC-2'].front.emissive.setRGB(0.35 * pulse, 0.03 * pulse, 0.03 * pulse);
+      if (world.flags.crac2Down) cracs['CRAC-2'].front.emissive.set(getTokens().sev.disaster).multiplyScalar(0.35 * pulse);
       else cracs['CRAC-2'].front.emissive.setRGB(0, 0, 0);
       for (const def of RACKS) {
         const sev = sevMap[def.id];
-        if (mode === 'estado' && (sev === 'disaster' || sev === 'high')) racks[def.id].bar.scale.y = 1 + pulse * 1.5;
-        else racks[def.id].bar.scale.y = 1;
+        const sc = priorityOf(sev) === 1 ? 0.36 * (1 + 0.18 * pulse) : 0.36; // el ícono de prioridad 1 late
+        racks[def.id].icon.scale.set(sc, sc, 1);
         if (racks[def.id].gapGlow) racks[def.id].gapGlow.visible = world.racks[def.id].gap && p < 0.01;
       }
     }

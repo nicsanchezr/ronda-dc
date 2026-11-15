@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { RACKS } from './scenario.js';
 import { deviceState, psuBranches, branchPowered, pduLoad, deviceInfo } from './sim.js';
 import { fadeRecord, setFade, collectMaterials } from './fade.js';
+import { getTokens } from './themes/index.js';
 
 export const U = 0.0445;
 const RW = 0.6, RH = 2.0, RD = 1.1;
@@ -12,109 +13,113 @@ const Y0 = 0.06; // altura del borde inferior de U1
 const MOUNT_W = 0.44; // ancho de un equipo de 19"
 const FRONT_Z = RD / 2 - 0.06; // cara frontal de los equipos
 const PDU_X = 0.272, PDU_Z = -RD / 2 + 0.075;
-export const CORD = { A: 0x3b82f6, B: 0xf97316 };
-const LEDC = { on: 0x30c48d, warn: 0xf5c518, crit: 0xe5484d, off: 0x1a1d24, act: 0x7ee2a8, noin: 0xf59e0b };
+// Colores: todos desde el tema activo (T.scene.rv, T.scene.dev, T.led, T.cord). Al cambiar de tema se reconstruye.
 
 const uy = (u) => Y0 + (u - 1) * U; // borde inferior de la U
 const tex = (c) => { const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; };
 function canvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return [c, c.getContext('2d')]; }
 
 // ---------- Texturas --------------------------------------------------------------
-function railTexture(rear) {
+function railTexture(rear, T) {
+  const V = T.scene.rv;
   const per = 40, [c, g] = canvas(64, 42 * per);
-  g.fillStyle = '#1d222c'; g.fillRect(0, 0, 64, c.height);
+  g.fillStyle = V.railBg; g.fillRect(0, 0, 64, c.height);
   for (let u = 1; u <= 42; u++) {
     const y = c.height - u * per;
-    g.fillStyle = '#2a303c'; g.fillRect(0, y, 64, 1);
-    g.fillStyle = '#0c0e12';
+    g.fillStyle = V.railLine; g.fillRect(0, y, 64, 1);
+    g.fillStyle = V.railHole;
     for (const k of [0.2, 0.5, 0.8]) g.fillRect(rear ? 40 : 6, y + per * k - 3, 14, 6);
-    g.fillStyle = u % 5 === 0 ? '#e8ecf4' : '#a3adbf';
-    g.font = `${u % 5 === 0 ? 700 : 500} 22px ui-monospace, Consolas, monospace`;
+    g.fillStyle = u % 5 === 0 ? V.railNumMajor : V.railNum;
+    g.font = `${u % 5 === 0 ? 700 : 500} 22px ${T.fonts.mono}`;
     g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillText(String(u), rear ? 22 : 42, y + per / 2);
   }
   return tex(c);
 }
 
-function frontTexture(d) {
+function frontTexture(d, T) {
+  const V = T.scene.rv;
   const h = d.h, W = 640, H = 64 * h, [c, g] = canvas(W, H);
-  const base = { server: '#2b313d', storage: '#323b4d', switch: '#23272f', firewall: '#2a2530', router: '#262d2a', patch: '#15171c' }[d.type] || '#2b313d';
+  const base = T.scene.dev[d.type] || T.scene.dev.server;
   g.fillStyle = base; g.fillRect(0, 0, W, H);
-  g.strokeStyle = 'rgba(255,255,255,.10)'; g.lineWidth = 3; g.strokeRect(1.5, 1.5, W - 3, H - 3);
+  g.strokeStyle = V.bezelEdge; g.lineWidth = 3; g.strokeRect(1.5, 1.5, W - 3, H - 3);
   // orejas de montaje con tornillos
-  g.fillStyle = '#3a4150'; g.fillRect(0, 0, 18, H); g.fillRect(W - 18, 0, 18, H);
-  g.fillStyle = '#0d0f13';
+  g.fillStyle = V.ear; g.fillRect(0, 0, 18, H); g.fillRect(W - 18, 0, 18, H);
+  g.fillStyle = V.screw;
   for (let i = 0; i < h; i++) { g.beginPath(); g.arc(9, 64 * i + 32, 4, 0, 7); g.fill(); g.beginPath(); g.arc(W - 9, 64 * i + 32, 4, 0, 7); g.fill(); }
-  const label = (x, y, size = 22) => { g.fillStyle = '#e6eaf2'; g.font = `600 ${size}px ui-monospace, Consolas, monospace`; g.textBaseline = 'middle'; g.fillText(d.name, x, y); };
+  const label = (x, y, size = 22) => { g.fillStyle = V.label; g.font = `600 ${size}px ${T.fonts.mono}`; g.textBaseline = 'middle'; g.fillText(d.name, x, y); };
   if (d.type === 'server' || d.type === 'storage') {
     const cols = d.type === 'storage' ? 6 : h >= 2 ? 8 : 4, rows = d.type === 'storage' ? 4 : h >= 2 ? 2 : 1;
     const x0 = 170, bw = (d.type === 'storage' ? 340 : 300) / cols, bh = (H - 16) / rows;
     for (let r = 0; r < rows; r++) for (let k = 0; k < cols; k++) {
       const x = x0 + k * bw, y = 8 + r * bh;
-      g.fillStyle = '#171a21'; g.fillRect(x + 2, y + 2, bw - 4, bh - 4);
-      g.fillStyle = '#4a5468'; g.fillRect(x + 5, y + bh / 2 - 2, bw - 18, 4);
-      g.fillStyle = '#1f8f63'; g.fillRect(x + bw - 11, y + 5, 4, 4);
+      g.fillStyle = V.bay; g.fillRect(x + 2, y + 2, bw - 4, bh - 4);
+      g.fillStyle = V.bayBar; g.fillRect(x + 5, y + bh / 2 - 2, bw - 18, 4);
+      g.fillStyle = V.bayLed; g.fillRect(x + bw - 11, y + 5, 4, 4);
     }
     // rejilla de ventilación (arriba) y nombre del equipo (abajo)
-    if (h >= 2) { g.fillStyle = '#1a1e26'; for (let x = 26; x < 160; x += 9) g.fillRect(x, 8, 4, H - 44); }
+    if (h >= 2) { g.fillStyle = V.vent; for (let x = 26; x < 160; x += 9) g.fillRect(x, 8, 4, H - 44); }
     label(28, h >= 2 ? H - 18 : H / 2, h >= 2 ? 22 : 18);
   } else if (d.type === 'switch' || d.type === 'patch') {
     const n = 24, rows = d.type === 'patch' ? 1 : 2;
     const x0 = 150, pw = 13;
     for (let r = 0; r < rows; r++) for (let k = 0; k < n; k++) {
       const x = x0 + k * pw + Math.floor(k / 6) * 6, y = rows === 1 ? 20 : 8 + r * 26;
-      g.fillStyle = '#07080a'; g.fillRect(x, y, pw - 3, rows === 1 ? 24 : 20);
-      if (d.type === 'patch') { g.fillStyle = '#6b7385'; g.font = '9px ui-monospace, monospace'; g.fillText(String(k + 1), x + 1, 56); }
+      g.fillStyle = V.port; g.fillRect(x, y, pw - 3, rows === 1 ? 24 : 20);
+      if (d.type === 'patch') { g.fillStyle = V.portNum; g.font = `9px ${T.fonts.mono}`; g.fillText(String(k + 1), x + 1, 56); }
     }
-    if (d.type === 'switch') { g.fillStyle = '#0a0b0e'; for (let k = 0; k < 2; k++) g.fillRect(490 + k * 22, 18, 18, 28); }
+    if (d.type === 'switch') { g.fillStyle = V.port; for (let k = 0; k < 2; k++) g.fillRect(490 + k * 22, 18, 18, 28); }
     label(26, 32, 18);
   } else {
     // firewall / router
     const ports = d.type === 'router' ? 8 : 6;
-    for (let k = 0; k < ports; k++) { g.fillStyle = '#07080a'; g.fillRect(250 + k * 24, H / 2 - 12, 20, 24); }
-    g.fillStyle = '#0a0b0e'; g.fillRect(470, H / 2 - 10, 28, 20); // consola
-    g.fillStyle = '#7d879a'; g.font = '10px ui-monospace, monospace'; g.fillText('CON', 470, H / 2 + 20);
-    if (d.type === 'router') { g.fillStyle = '#1b1f27'; g.fillRect(150, 10, 80, H - 20); }
+    for (let k = 0; k < ports; k++) { g.fillStyle = V.port; g.fillRect(250 + k * 24, H / 2 - 12, 20, 24); }
+    g.fillStyle = V.port; g.fillRect(470, H / 2 - 10, 28, 20); // consola
+    g.fillStyle = V.portNum; g.font = `10px ${T.fonts.mono}`; g.fillText('CON', 470, H / 2 + 20);
+    if (d.type === 'router') { g.fillStyle = V.vent; g.fillRect(150, 10, 80, H - 20); }
     label(26, H / 2, 20);
   }
   return tex(c);
 }
 
-function rearTexture(d) {
+function rearTexture(d, T) {
+  const V = T.scene.rv;
   const h = d.h, W = 640, H = 64 * h, [c, g] = canvas(W, H);
-  g.fillStyle = '#1b1f27'; g.fillRect(0, 0, W, H);
-  g.fillStyle = '#121419';
+  g.fillStyle = V.devRear; g.fillRect(0, 0, W, H);
+  g.fillStyle = V.fan;
   // ventiladores
-  if (d.type !== 'patch') for (let k = 0; k < (h >= 2 ? 3 : 2); k++) { const cx = 260 + k * 70; g.beginPath(); g.arc(cx, H / 2, Math.min(28, H / 2 - 6), 0, 7); g.fill(); g.strokeStyle = '#2a2f3a'; g.lineWidth = 2; g.stroke(); }
+  if (d.type !== 'patch') for (let k = 0; k < (h >= 2 ? 3 : 2); k++) { const cx = 260 + k * 70; g.beginPath(); g.arc(cx, H / 2, Math.min(28, H / 2 - 6), 0, 7); g.fill(); g.strokeStyle = V.fanRing; g.lineWidth = 2; g.stroke(); }
   // puertos de red
-  g.fillStyle = '#07080a';
+  g.fillStyle = V.port;
   for (let k = 0; k < (d.type === 'patch' ? 24 : 4); k++) g.fillRect(d.type === 'patch' ? 130 + k * 15 : 470 + k * 26, H / 2 - 9, 12, 18);
   return tex(c);
 }
 
-function blankTexture() {
+function blankTexture(T) {
+  const V = T.scene.rv;
   const [c, g] = canvas(512, 64);
-  g.fillStyle = '#20242c'; g.fillRect(0, 0, 512, 64);
-  g.fillStyle = '#262b35'; g.fillRect(20, 6, 472, 52);
-  g.fillStyle = '#14171c'; g.fillRect(0, 62, 512, 2);
-  g.fillStyle = '#0d0f13'; g.beginPath(); g.arc(9, 32, 4, 0, 7); g.fill(); g.beginPath(); g.arc(503, 32, 4, 0, 7); g.fill();
+  g.fillStyle = V.blank; g.fillRect(0, 0, 512, 64);
+  g.fillStyle = V.blankFace; g.fillRect(20, 6, 472, 52);
+  g.fillStyle = V.blankEdge; g.fillRect(0, 62, 512, 2);
+  g.fillStyle = V.screw; g.beginPath(); g.arc(9, 32, 4, 0, 7); g.fill(); g.beginPath(); g.arc(503, 32, 4, 0, 7); g.fill();
   const t = tex(c); t.wrapT = THREE.RepeatWrapping; return t;
 }
 
-function perforatedDoorTexture() {
+function perforatedDoorTexture(T) {
   const [c, g] = canvas(128, 128);
   g.clearRect(0, 0, 128, 128);
-  g.fillStyle = 'rgba(40,46,58,1)'; g.fillRect(0, 0, 128, 128);
+  g.fillStyle = T.scene.rv.door; g.fillRect(0, 0, 128, 128);
   g.globalCompositeOperation = 'destination-out';
   for (let y = 4; y < 128; y += 8) for (let x = 4; x < 128; x += 8) { g.beginPath(); g.arc(x, y, 2.6, 0, 7); g.fill(); }
   const t = tex(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(6, 20); return t;
 }
 
-function pduTexture(b) {
+function pduTexture(b, T) {
+  const V = T.scene.rv;
   const [c, g] = canvas(64, 1024);
-  g.fillStyle = '#16191f'; g.fillRect(0, 0, 64, 1024);
-  g.fillStyle = b === 'A' ? '#3b82f6' : '#f97316'; g.fillRect(0, 0, 6, 1024); g.fillRect(58, 0, 6, 1024);
-  for (let y = 40; y < 1000; y += 38) { g.fillStyle = '#050608'; g.fillRect(18, y, 28, 24); g.fillStyle = '#2b303a'; g.fillRect(26, y + 6, 4, 10); g.fillRect(34, y + 6, 4, 10); }
+  g.fillStyle = V.pduBody; g.fillRect(0, 0, 64, 1024);
+  g.fillStyle = T.cord[b]; g.fillRect(0, 0, 6, 1024); g.fillRect(58, 0, 6, 1024);
+  for (let y = 40; y < 1000; y += 38) { g.fillStyle = V.pduOutlet; g.fillRect(18, y, 28, 24); g.fillStyle = V.pduPin; g.fillRect(26, y + 6, 4, 10); g.fillRect(34, y + 6, 4, 10); }
   return tex(c);
 }
 
@@ -123,7 +128,7 @@ function pduTexture(b) {
 // y aparece con un fundido (setFade) mientras la cámara se acerca.
 export function createRackView(scene) {
 
-  const shared = { railF: railTexture(false), railR: railTexture(true), blank: blankTexture(), door: perforatedDoorTexture(), pduA: pduTexture('A'), pduB: pduTexture('B') };
+  let shared = null; // texturas comunes de la construcción actual (dependen del tema)
 
   let root = null, R = null; // R: estado de la construcción actual
   const pickables = [];
@@ -146,7 +151,7 @@ export function createRackView(scene) {
     recs = new Map();
     root.traverse((o) => {
       if (o.geometry) o.geometry.dispose();
-      if (o.material) [].concat(o.material).forEach((m) => { if (m.map && !Object.values(shared).includes(m.map)) m.map.dispose(); m.dispose(); });
+      if (o.material) [].concat(o.material).forEach((m) => { if (m.map) m.map.dispose(); m.dispose(); });
     });
     root = null; R = null; pickables.length = 0;
   }
@@ -154,10 +159,12 @@ export function createRackView(scene) {
   function build(rackId, world, xf) {
     clear();
     const def = RACKS.find((r) => r.id === rackId);
+    const T = getTokens(), V = T.scene.rv;
+    shared = { railF: railTexture(false, T), railR: railTexture(true, T), blank: blankTexture(T), door: perforatedDoorTexture(T), pduA: pduTexture('A', T), pduB: pduTexture('B', T) };
     root = new THREE.Group(); scene.add(root);
     root.position.copy(xf.position); root.quaternion.copy(xf.quaternion); root.updateMatrixWorld(true);
     const tagRack = { kind: 'rack', id: rackId };
-    const frameMat = new THREE.MeshStandardMaterial({ color: 0x1a1f29, roughness: 0.55, metalness: 0.4, side: THREE.DoubleSide });
+    const frameMat = new THREE.MeshStandardMaterial({ color: V.frame, roughness: 0.55, metalness: 0.35, side: THREE.DoubleSide });
     // estructura: postes, techo, zócalo y laterales
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
       const p = new THREE.Mesh(new THREE.BoxGeometry(0.03, RH, 0.03), frameMat);
@@ -165,7 +172,7 @@ export function createRackView(scene) {
     }
     const top = new THREE.Mesh(new THREE.BoxGeometry(RW, 0.03, RD), frameMat); top.position.y = RH - 0.015; root.add(top);
     const plinth = new THREE.Mesh(new THREE.BoxGeometry(RW, 0.05, RD), frameMat); plinth.position.y = 0.025; root.add(plinth);
-    const sideMat = new THREE.MeshStandardMaterial({ color: 0x161a22, roughness: 0.7, metalness: 0.3, side: THREE.DoubleSide });
+    const sideMat = new THREE.MeshStandardMaterial({ color: V.side, roughness: 0.7, metalness: 0.3, side: THREE.DoubleSide });
     for (const sx of [-1, 1]) {
       const s = new THREE.Mesh(new THREE.PlaneGeometry(RD - 0.03, RH - 0.06), sideMat);
       s.rotation.y = Math.PI / 2; s.position.set(sx * (RW / 2 - 0.002), RH / 2, 0); root.add(s);
@@ -187,8 +194,8 @@ export function createRackView(scene) {
       const info = deviceInfo(rackId, d);
       const tag = { kind: 'device', id: rackId + '/' + d.name };
       const hgt = d.h * U - 0.003, depth = info.prof;
-      const side = new THREE.MeshStandardMaterial({ color: 0x272c36, roughness: 0.6, metalness: 0.35 });
-      const mats = [side, side, side, side, new THREE.MeshStandardMaterial({ map: frontTexture(d), roughness: 0.55, metalness: 0.2 }), new THREE.MeshStandardMaterial({ map: rearTexture(d), roughness: 0.6 })];
+      const side = new THREE.MeshStandardMaterial({ color: T.scene.dev.side, roughness: 0.6, metalness: 0.35 });
+      const mats = [side, side, side, side, new THREE.MeshStandardMaterial({ map: frontTexture(d, T), roughness: 0.55, metalness: 0.2 }), new THREE.MeshStandardMaterial({ map: rearTexture(d, T), roughness: 0.6 })];
       const box = new THREE.Mesh(new THREE.BoxGeometry(MOUNT_W, hgt, depth), mats);
       const yc = uy(d.u) + (d.h * U) / 2;
       box.position.set(0, yc, FRONT_Z - depth / 2); box.userData = tag; root.add(box); pickables.push(box);
@@ -196,7 +203,7 @@ export function createRackView(scene) {
       const leds = {};
       if (d.type !== 'patch') {
         ['pwr', 'act', 'st'].forEach((k, i) => {
-          const m = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.006, 0.004), new THREE.MeshBasicMaterial({ color: LEDC.on }));
+          const m = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.006, 0.004), new THREE.MeshBasicMaterial({ color: T.led.on }));
           m.position.set(MOUNT_W / 2 - 0.05 + i * 0.012, uy(d.u) + d.h * U - 0.012, FRONT_Z + 0.002);
           m.userData = tag; root.add(m); pickables.push(m); leds[k] = m;
         });
@@ -205,10 +212,10 @@ export function createRackView(scene) {
       const psus = [];
       if (d.type !== 'patch') {
         [-1, 1].forEach((sx, i) => {
-          const p = new THREE.Mesh(new THREE.BoxGeometry(0.07, Math.min(0.038, hgt - 0.004), 0.02), new THREE.MeshStandardMaterial({ color: 0x2f3542, roughness: 0.5, metalness: 0.5 }));
+          const p = new THREE.Mesh(new THREE.BoxGeometry(0.07, Math.min(0.038, hgt - 0.004), 0.02), new THREE.MeshStandardMaterial({ color: V.psu, roughness: 0.5, metalness: 0.5 }));
           const px = sx * 0.15, pz = FRONT_Z - depth - 0.01;
           p.position.set(px, uy(d.u) + 0.022, pz); p.userData = tag; root.add(p); pickables.push(p);
-          const led = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.006, 0.003), new THREE.MeshBasicMaterial({ color: LEDC.on }));
+          const led = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.006, 0.003), new THREE.MeshBasicMaterial({ color: T.led.on }));
           led.position.set(px - sx * 0.022, uy(d.u) + 0.022, pz - 0.011); root.add(led);
           psus.push({ mesh: p, led, x: px, y: uy(d.u) + 0.022, z: pz - 0.01, label: 'PSU' + (i + 1) });
         });
@@ -241,9 +248,9 @@ export function createRackView(scene) {
       const t = shared.blank.clone(); t.needsUpdate = true; t.repeat.set(1, n);
       gapPanel = new THREE.Mesh(new THREE.BoxGeometry(MOUNT_W, n * U - 0.002, 0.004), new THREE.MeshStandardMaterial({ map: t, roughness: 0.75 }));
       gapPanel.position.set(0, uy(a) + (n * U) / 2, FRONT_Z - 0.002); gapPanel.userData = tagRack; root.add(gapPanel);
-      gapGlow = new THREE.Mesh(new THREE.PlaneGeometry(MOUNT_W, n * U), new THREE.MeshBasicMaterial({ color: 0xff7a1a, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false }));
+      gapGlow = new THREE.Mesh(new THREE.PlaneGeometry(MOUNT_W, n * U), new THREE.MeshBasicMaterial({ color: T.scene.gapGlow, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false }));
       gapGlow.position.set(0, uy(a) + (n * U) / 2, -0.2); root.add(gapGlow);
-      const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(MOUNT_W, n * U)), new THREE.LineDashedMaterial({ color: 0xff9f43, dashSize: 0.015, gapSize: 0.01 }));
+      const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(MOUNT_W, n * U)), new THREE.LineDashedMaterial({ color: V.gapEdge, dashSize: 0.015, gapSize: 0.01 }));
       edges.computeLineDistances(); edges.position.set(0, uy(a) + (n * U) / 2, FRONT_Z + 0.001); root.add(edges);
       gapGlow.userData.edges = edges;
     }
@@ -253,12 +260,12 @@ export function createRackView(scene) {
     ['A', 'B'].forEach((b) => {
       const sx = b === 'A' ? -1 : 1;
       const tag = { kind: 'pdu', id: rackId + '/' + b };
-      const body = new THREE.Mesh(new THREE.BoxGeometry(0.05, 1.72, 0.045), [0, 0, 0, 0, 0, 1].map((k) => (k ? new THREE.MeshStandardMaterial({ map: b === 'A' ? shared.pduA : shared.pduB, roughness: 0.6 }) : new THREE.MeshStandardMaterial({ color: 0x16191f, roughness: 0.6 }))));
+      const body = new THREE.Mesh(new THREE.BoxGeometry(0.05, 1.72, 0.045), [0, 0, 0, 0, 0, 1].map((k) => (k ? new THREE.MeshStandardMaterial({ map: b === 'A' ? shared.pduA : shared.pduB, roughness: 0.6 }) : new THREE.MeshStandardMaterial({ color: V.pduBody, roughness: 0.6 }))));
       body.position.set(sx * PDU_X, 0.98, PDU_Z); body.userData = tag; root.add(body); pickables.push(body);
       const [c, g] = canvas(256, 128); const t = tex(c);
       const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.025), new THREE.MeshBasicMaterial({ map: t }));
       screen.rotation.y = Math.PI; screen.position.set(sx * PDU_X, 1.79, PDU_Z - 0.0235); screen.userData = tag; root.add(screen); pickables.push(screen);
-      const head = new THREE.Mesh(new THREE.BoxGeometry(0.056, 0.06, 0.05), new THREE.MeshStandardMaterial({ color: b === 'A' ? CORD.A : CORD.B, roughness: 0.5 }));
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.056, 0.06, 0.05), new THREE.MeshStandardMaterial({ color: T.cord[b], roughness: 0.5 }));
       head.position.set(sx * PDU_X, 1.79, PDU_Z + 0.004); head.userData = tag; root.add(head); pickables.push(head);
       screen.renderOrder = 2;
       pdus[b] = { body, screen, c, g, t, last: '' };
@@ -268,11 +275,11 @@ export function createRackView(scene) {
     const hinge = new THREE.Group(); hinge.position.set(RW / 2, RH / 2, -RD / 2 - 0.012); root.add(hinge);
     const door = new THREE.Mesh(new THREE.BoxGeometry(RW, RH - 0.04, 0.012), new THREE.MeshStandardMaterial({ map: shared.door, transparent: true, alphaTest: 0.02, opacity: 0.4, roughness: 0.5, metalness: 0.4, side: THREE.DoubleSide, depthWrite: false }));
     door.position.x = -RW / 2; hinge.add(door);
-    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.16, 0.03), new THREE.MeshStandardMaterial({ color: 0x9aa4b8, metalness: 0.7, roughness: 0.3 }));
+    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.16, 0.03), new THREE.MeshStandardMaterial({ color: V.handle, metalness: 0.7, roughness: 0.3 }));
     handle.position.set(-RW + 0.05, 0, -0.02); hinge.add(handle);
 
     // sensor de entrada superior (R04 puede estar suelto)
-    const sensor = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.035, 0.02), new THREE.MeshStandardMaterial({ color: 0xe9eef7, emissive: 0x334455 }));
+    const sensor = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.035, 0.02), new THREE.MeshStandardMaterial({ color: T.scene.sensor, emissive: T.scene.sensorGlow }));
     sensor.userData = tagRack; root.add(sensor);
 
     // cable de consola de fw-01 (R02)
@@ -281,13 +288,13 @@ export function createRackView(scene) {
       const fw = def.devices.find((d) => d.name === 'fw-01');
       const y = uy(fw.u) + U / 2, z = FRONT_Z - deviceInfo(rackId, fw).prof;
       const curve = new THREE.CatmullRomCurve3([new THREE.Vector3(0.05, y, z - 0.005), new THREE.Vector3(0.08, y - 0.05, z - 0.12), new THREE.Vector3(0.12, 1.0, -RD / 2 - 0.12), new THREE.Vector3(0.1, 0.3, -RD / 2 - 0.35), new THREE.Vector3(0.0, 0.01, -RD / 2 - 0.6)]);
-      consoleCable = new THREE.Mesh(new THREE.TubeGeometry(curve, 48, 0.004, 6), new THREE.MeshStandardMaterial({ color: 0x3b82f6, emissive: 0x13306a }));
+      consoleCable = new THREE.Mesh(new THREE.TubeGeometry(curve, 48, 0.004, 6), new THREE.MeshStandardMaterial({ color: T.scene.cable, emissive: T.scene.cableGlow }));
       consoleCable.userData = { kind: 'device', id: 'R02/fw-01' }; root.add(consoleCable); pickables.push(consoleCable);
     }
 
-    R = { rackId, def, devs, blanks, gapPanel, gapGlow, pdus, hinge, sensor, consoleCable, selBox: null };
+    R = { rackId, T, def, devs, blanks, gapPanel, gapGlow, pdus, hinge, sensor, consoleCable, selBox: null };
     // el recuadro de selección va en coordenadas de mundo, directo en la escena
-    const sel = new THREE.BoxHelper(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1)), 0x6b9bff); sel.visible = false; scene.add(sel); R.selBox = sel;
+    const sel = new THREE.BoxHelper(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1)), T.scene.select); sel.visible = false; scene.add(sel); R.selBox = sel;
     fade = 0;
     track(root);
     sync(world);
@@ -307,7 +314,7 @@ export function createRackView(scene) {
       new THREE.Vector3(tx, ty - 0.01, PDU_Z + 0.03),
       new THREE.Vector3(tx + sx * 0.004, ty, PDU_Z - 0.0),
     ];
-    const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.0042, 6), new THREE.MeshStandardMaterial({ color: CORD[branch], roughness: 0.6 }));
+    const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.0042, 6), new THREE.MeshStandardMaterial({ color: R.T.cord[branch], roughness: 0.6 }));
     return m;
   }
 
@@ -316,11 +323,12 @@ export function createRackView(scene) {
     if (P.last === key) return;
     P.last = key;
     const g = P.g;
-    g.fillStyle = '#050608'; g.fillRect(0, 0, 256, 128);
+    const TT = R.T;
+    g.fillStyle = TT.scene.rv.pduScreen; g.fillRect(0, 0, 256, 128);
     g.textAlign = 'center'; g.textBaseline = 'middle';
-    if (!on) { g.fillStyle = '#ff5a52'; g.font = '700 46px ui-monospace, monospace'; g.fillText('TRIP', 128, 64); }
+    if (!on) { g.fillStyle = TT.led.crit; g.font = `700 46px ${TT.fonts.mono}`; g.fillText('TRIP', 128, 64); }
     else {
-      g.fillStyle = load >= 80 ? '#ff5a52' : load >= 60 ? '#f5c518' : '#7ee2a8';
+      g.fillStyle = load >= 80 ? TT.led.crit : load >= 60 ? TT.led.warn : TT.led.act;
       g.font = '700 60px ui-monospace, monospace'; g.fillText(Math.round(load) + '%', 128, 66);
     }
     P.t.needsUpdate = true;
@@ -334,8 +342,8 @@ export function createRackView(scene) {
       const st = deviceState(world, R.rackId, d);
       D.state = st;
       if (D.leds.pwr) {
-        D.leds.pwr.material.color.setHex(st === 'down' ? LEDC.off : LEDC.on);
-        D.leds.st.material.color.setHex(st === 'down' ? LEDC.off : st === 'crit' ? LEDC.crit : st === 'warn' ? LEDC.warn : LEDC.on);
+        D.leds.pwr.material.color.set(st === 'down' ? R.T.led.off : R.T.led.on);
+        D.leds.st.material.color.set(st === 'down' ? R.T.led.off : st === 'crit' ? R.T.led.crit : st === 'warn' ? R.T.led.warn : R.T.led.on);
       }
       const br = psuBranches(world, R.rackId, d);
       const key = br.join('');
@@ -344,7 +352,7 @@ export function createRackView(scene) {
         D.cords = D.psus.map((p, i) => { const c = cordMesh(p, br[i]); c.userData = { kind: 'device', id: R.rackId + '/' + name }; root.add(c); track(c); return c; });
         D.cordKey = key;
       }
-      D.psus.forEach((p, i) => p.led.material.color.setHex(branchPowered(world, R.rackId, br[i]) ? LEDC.on : (world.t < world.flags.powerCutUntil ? LEDC.off : LEDC.noin)));
+      D.psus.forEach((p, i) => p.led.material.color.set(branchPowered(world, R.rackId, br[i]) ? R.T.led.on : (world.t < world.flags.powerCutUntil ? R.T.led.off : R.T.led.noin)));
     }
     for (const b of ['A', 'B']) drawPdu(R.pdus[b], b, pduLoad(world, R.rackId, b), branchPowered(world, R.rackId, b));
     if (R.gapPanel) { R.gapPanel.visible = !rk.gap; R.gapGlow.visible = rk.gap; R.gapGlow.userData.edges.visible = rk.gap; }
@@ -359,9 +367,9 @@ export function createRackView(scene) {
     for (const name in R.devs) {
       const D = R.devs[name];
       if (!D.leds.act) continue;
-      if (D.state === 'down') { D.leds.act.material.color.setHex(LEDC.off); continue; }
+      if (D.state === 'down') { D.leds.act.material.color.set(R.T.led.off); continue; }
       const on = Math.sin(now / (90 / D.speed) + D.phase) + Math.sin(now / (37 / D.speed) + D.phase * 2) > 0.3;
-      D.leds.act.material.color.setHex(on ? LEDC.act : LEDC.off);
+      D.leds.act.material.color.set(on ? R.T.led.act : R.T.led.off);
     }
     if (R.selBox.visible && R.selTarget) R.selBox.setFromObject(R.selTarget);
   }

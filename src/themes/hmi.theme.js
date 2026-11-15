@@ -1,0 +1,82 @@
+// Tema C · Alto rendimiento (HMI). Criterio ISA-101: todo en grises y el color
+// queda reservado para lo anormal (alarmas), para que salte a la vista.
+export default {
+  id: 'hmi',
+  order: 2,
+  name: { es: 'Alto rendimiento', en: 'High performance' },
+  description: {
+    es: 'Criterio ISA-101 de pantallas de operación: todo en grises y color solo para lo anormal.',
+    en: 'ISA-101 operator display practice: greys everywhere, colour only for abnormal states.',
+  },
+  fonts: {
+    sans: '"Atkinson Hyperlegible", ui-sans-serif, system-ui, "Segoe UI", sans-serif',
+    head: '"Atkinson Hyperlegible", ui-sans-serif, system-ui, "Segoe UI", sans-serif',
+    mono: '"Atkinson Hyperlegible Mono", ui-monospace, Consolas, monospace',
+  },
+  modes: {
+    light: {
+      ui: {
+        bg: '#d3d6d9', bg2: '#e4e6e8', panel: '#e9ebed', panel2: '#dfe2e4', raised: '#d2d6d9', line: '#b7bcc1', line2: '#cdd1d4',
+        txt: '#1c2023', mut: '#475057', acc: '#3b4a6b', accInk: '#ffffff', accText: '#33415f',
+        input: '#f3f4f5', btn2: '#d6dadd', btn2Ink: '#1c2023', overlay: 'rgba(40,44,48,.45)', shadow: 'rgba(20,24,28,.18)',
+        glass: 'rgba(233,235,237,.96)', tip: '#f3f4f5', toast: '#e9ebed', focus: '#3b4a6b',
+        good: '#5f7d6d', warn: '#d39a00', bad: '#c62828', goodText: '#3d5b4b', warnText: '#7a5400', badText: '#a51f1f',
+        chipBg: '#d6dadd', chipNewBg: '#c62828', chipNewInk: '#ffffff', chipDoneBg: '#d6dadd', chipDoneInk: '#3d5b4b',
+      },
+      sev: { disaster: '#c62828', high: '#c2410c', average: '#a85d00', warning: '#8f6a00', info: '#3d6fb5', ok: '#8a9095' },
+      onSev: { disaster: '#ffffff', high: '#ffffff', average: '#ffffff', warning: '#ffffff', info: '#ffffff', ok: '#ffffff' },
+      led: { on: '#6f9e86', act: '#a8cdb9', warn: '#e5a000', crit: '#d62f2f', off: '#2a2d30', noin: '#e08a00' },
+      cord: { A: '#4f6d8f', B: '#7c6a94' },
+      scene: {
+        clear: '#d3d6d9', fog: '#d3d6d9', hemiSky: '#ffffff', hemiGround: '#a5aaaf', hemiInt: 1.2, keyInt: 1.0, fillColor: '#ffffff', fillInt: 0.35,
+        floor: '#cdd0d3', floorJoint: '#bfc3c7', perf: '#c3c8cc', perfHole: '#aeb3b8', perfJoint: '#b8bdc1', perfGlow: '#000000',
+        rack: '#b1b5b9', rackInner: '#3a3e42', rackDoor: '#9fa3a8', halo: false,
+        dev: { server: '#5a5f64', storage: '#62676c', switch: '#53585d', firewall: '#5a5d61', router: '#565b5f', patch: '#4b4f53', side: '#74797e' },
+        crac: '#b1b5b9', cracGrille: '#a3a7ab', cracSlat: '#91959a', cracPanel: '#3a3e42', cracText: '#eceef0',
+        ups: '#aaaeb2', glass: '#c2c9ce', glassFrame: '#8e9398', acs: '#5a5f64', acsGlow: '#1e2a24',
+        sensor: '#f3f4f5', sensorGlow: '#3a3e42', cable: '#3d6fb5', cableGlow: '#14305e', water: '#3d6fb5', leak: '#e5a000', rope: '#9a8a5a',
+        gapGlow: '#e08a00', select: '#3b4a6b', outline: 2.5,
+        label: { bg: 'rgba(240,241,242,0.92)', border: 'rgba(0,0,0,0.16)', txt: '#1c2023', sub: '#475057' },
+        rv: {
+          frame: '#9fa3a8', side: '#aaaeb2', railBg: '#3a3e42', railLine: '#4a4f54', railHole: '#1c1f22', railNum: '#c5cad0', railNumMajor: '#ffffff',
+          ear: '#6a6f74', screw: '#2a2d30', bezelEdge: 'rgba(255,255,255,0.10)', label: '#eceef0', bay: '#3e4246', bayBar: '#7a8086', bayLed: '#6f9e86',
+          vent: '#45494d', port: '#2a2d30', portNum: '#9aa0a6', devRear: '#46494d', fan: '#36393c', fanRing: '#4f5357',
+          blank: '#4b4f53', blankFace: '#55595d', blankEdge: '#3a3d40', door: '#94989d', handle: '#74797e', psu: '#5a5f64',
+          pduBody: '#3a3e42', pduOutlet: '#2a2d30', pduPin: '#4a4f54', pduScreen: '#1c1f22', gapEdge: '#e08a00',
+        },
+      },
+    },
+    dark: {
+      ui: {
+        bg: '#34383c', bg2: '#2e3236', panel: '#3a3e42', panel2: '#404448', raised: '#474c50', line: '#50555a', line2: '#45494d',
+        txt: '#e8eaec', mut: '#b9bfc4', acc: '#a9b8d8', accInk: '#1c2023', accText: '#b9c6e2',
+        input: '#2b2f32', btn2: '#464b4f', btn2Ink: '#e8eaec', overlay: 'rgba(14,16,18,.62)', shadow: 'rgba(0,0,0,.4)',
+        glass: 'rgba(46,50,54,.96)', tip: '#2b2f32', toast: '#3a3e42', focus: '#b9c6e2',
+        good: '#8fae9c', warn: '#f0b429', bad: '#f0564a', goodText: '#a9c7b5', warnText: '#f5c95a', badText: '#ff9d94',
+        chipBg: '#464b4f', chipNewBg: '#d33a2e', chipNewInk: '#ffffff', chipDoneBg: '#464b4f', chipDoneInk: '#a9c7b5',
+      },
+      sev: { disaster: '#f0564a', high: '#ff7043', average: '#ffa726', warning: '#f0b429', info: '#7aa7e0', ok: '#8a9095' },
+      onSev: { disaster: '#1a1a1a', high: '#1a1a1a', average: '#1a1a1a', warning: '#1a1a1a', info: '#1a1a1a', ok: '#1a1a1a' },
+      led: { on: '#7fae96', act: '#b5d8c5', warn: '#f0b429', crit: '#ff5a4e', off: '#202326', noin: '#ffa726' },
+      cord: { A: '#7f9cc0', B: '#a493bd' },
+      scene: {
+        clear: '#34383c', fog: '#34383c', hemiSky: '#e4e7ea', hemiGround: '#3a3e42', hemiInt: 1.0, keyInt: 1.0, fillColor: '#ffffff', fillInt: 0.3,
+        floor: '#3d4145', floorJoint: '#35393d', perf: '#44494d', perfHole: '#383c40', perfJoint: '#3e4246', perfGlow: '#000000',
+        rack: '#64696e', rackInner: '#25282b', rackDoor: '#575c61', halo: false,
+        dev: { server: '#3e4246', storage: '#45494e', switch: '#3a3e42', firewall: '#404346', router: '#3c4043', patch: '#33363a', side: '#55595e' },
+        crac: '#5f6469', cracGrille: '#575c60', cracSlat: '#4b4f53', cracPanel: '#25282b', cracText: '#e8eaec',
+        ups: '#5b6065', glass: '#9aa3aa', glassFrame: '#787d82', acs: '#3e4246', acsGlow: '#1e2a24',
+        sensor: '#e8eaec', sensorGlow: '#3a3e42', cable: '#7aa7e0', cableGlow: '#1d3a66', water: '#7aa7e0', leak: '#f0b429', rope: '#9a8a5a',
+        gapGlow: '#ffa726', select: '#a9b8d8', outline: 2.5,
+        label: { bg: 'rgba(43,47,50,0.9)', border: 'rgba(255,255,255,0.14)', txt: '#e8eaec', sub: '#b0b6bb' },
+        rv: {
+          frame: '#575c61', side: '#4d5257', railBg: '#25282b', railLine: '#35393d', railHole: '#141618', railNum: '#b0b6bb', railNumMajor: '#ffffff',
+          ear: '#4b4f53', screw: '#1a1c1e', bezelEdge: 'rgba(255,255,255,0.10)', label: '#e8eaec', bay: '#2c2f32', bayBar: '#5f656a', bayLed: '#7fae96',
+          vent: '#323538', port: '#1a1c1e', portNum: '#8a9095', devRear: '#323538', fan: '#26292b', fanRing: '#3c4044',
+          blank: '#33363a', blankFace: '#3b3f43', blankEdge: '#26292b', door: '#52575c', handle: '#a0a6ab', psu: '#45494e',
+          pduBody: '#25282b', pduOutlet: '#1a1c1e', pduPin: '#35393d', pduScreen: '#141618', gapEdge: '#ffa726',
+        },
+      },
+    },
+  },
+};

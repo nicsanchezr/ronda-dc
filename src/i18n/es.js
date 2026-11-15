@@ -25,6 +25,13 @@ export default {
     end: 'Terminar turno',
     endConfirm: '¿Terminar con {n} abiertos?',
   },
+  settings: {
+    title: 'Tema y modo de color',
+    button: 'Tema',
+    theme: 'Tema',
+    mode: 'Modo',
+    light: 'Claro', dark: 'Oscuro', system: 'Sistema',
+  },
   stage: {
     aria: 'Vista 3D de la sala',
     zoomIn: 'Acercar',

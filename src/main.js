@@ -2,6 +2,10 @@ import { INCIDENTS, NOISE, ACCESS, CALENDAR, RUNBOOKS, ESCALATIONS, CLASSES, PRI
 import { createWorld, step, startIncident, applyClose, inspect, rackSeverity, clock, fmt1, TOTAL_DEVICES, rackMaxInlet } from './sim.js';
 import { createScene } from './scene3d.js';
 import { t, applyI18n } from './i18n/index.js';
+import { initThemes, themes, getState, setTheme, setMode, onThemeChange } from './themes/index.js';
+import { statusIcon } from './status.js';
+
+initThemes(); // variables CSS del tema antes de crear la escena
 
 const SEC_PER_MIN = 5; // segundos reales por minuto de juego a velocidad 1×
 const STORE_KEY = 'ronda-dc-ultimo';
@@ -23,6 +27,7 @@ const scene = createScene($('#view3d'), {
   onPick(kind, id) { S.sel = { kind, id }; renderInspector(); },
   onOpenRack(id) { openRackView(id); },
   onDetail(id) { renderRackUI(id); },
+  onDetailEnd() { renderInspector(); },
   onHover(u, e) {
     const tip = $('#tip');
     if (!u) { tip.hidden = true; return; }
@@ -48,10 +53,10 @@ function allAlerts() {
   return list.sort((a, b) => b.t - a.t);
 }
 
-function toast(html, sev = 'info', onClick) {
+function toast(html, sev = null, onClick) {
   const el = document.createElement('div');
-  el.className = 'toast'; el.style.setProperty('--c', SEV[sev] ? SEV[sev].color : '#6b9bff');
-  el.innerHTML = html;
+  el.className = 'toast';
+  el.innerHTML = (sev ? statusIcon(sev) : '') + `<div>${html}</div>`;
   if (onClick) { el.style.cursor = 'pointer'; el.onclick = () => { onClick(); el.remove(); }; }
   $('#toasts').appendChild(el);
   setTimeout(() => el.classList.add('out'), 5200);
@@ -101,7 +106,7 @@ function tickUI() {
 }
 
 function skipToNext() {
-  if (openTickets().length) { toast(t('ticket.openFirst'), 'warning'); return; }
+  if (openTickets().length) { toast(t('ticket.openFirst')); return; }
   const next = INCIDENTS.find((i) => !S.started.has(i.id));
   const target = next ? next.at : SHIFT.length;
   const dt = Math.max(0, target - S.world.t);
@@ -124,7 +129,7 @@ function renderSummary() {
   const affected = Object.values(sev).filter((s) => s !== 'ok').length;
   $('#summary').innerHTML = `
     <div class="big">${t('summary.devices', { devices: TOTAL_DEVICES, racks: RACKS.length })}</div>
-    <div class="sevrow">${['disaster', 'high', 'average', 'warning', 'info'].map((k) => `<span><i style="background:${SEV[k].color}"></i>${SEV[k].label} <b>${counts[k]}</b></span>`).join('')}<span><i style="background:${SEV.ok.color}"></i>${t('summary.racksOk')} <b>${RACKS.length - affected}</b></span></div>`;
+    <div class="sevrow">${['disaster', 'high', 'average', 'warning', 'info'].map((k) => `<span>${statusIcon(k)}${SEV[k].label} <b>${counts[k]}</b></span>`).join('')}<span>${statusIcon('ok')}${t('summary.racksOk')} <b>${RACKS.length - affected}</b></span></div>`;
 }
 
 function renderPanel() {
@@ -141,9 +146,9 @@ function renderPanel() {
   if (tab === 'monitoreo') {
     const list = allAlerts();
     h = list.length ? list.map((a) => `
-      <div class="row alert" style="--c:${SEV[a.sev].color}">
+      <div class="row alert">
         <div class="when">${clock(a.t)}</div>
-        <div class="body"><div class="host">${esc(a.host)} <span class="sev">${SEV[a.sev].label}</span></div><div>${esc(a.text)}</div>
+        <div class="body"><div class="host">${statusIcon(a.sev, { label: SEV[a.sev].label })}${esc(a.host)} <span class="sev">${SEV[a.sev].label}</span></div><div>${esc(a.text)}</div>
         ${a.inc ? `<button class="link" data-act="open-inc" data-inc="${a.inc}">${t('panel.viewTicket')}</button>` : ''}</div>
         ${attachBtn(a.id, clock(a.t) + ' · ' + a.host + ' · ' + a.text)}
       </div>`).join('') : `<p class="empty">${t('panel.noAlerts')}</p>`;
@@ -152,9 +157,9 @@ function renderPanel() {
       const st = x.closedAt != null ? 'closed' : x.ackAt != null ? 'open' : 'new';
       const stLabel = t({ closed: 'ticket.stClosed', open: 'ticket.stOpen', new: 'ticket.stNew' }[st]);
       const age = Math.floor((x.closedAt ?? w.t) - x.openedAt);
-      return `<div class="row ticket ${x.id === S.active ? 'sel' : ''}" data-act="open" data-tk="${x.id}" style="--c:${SEV[x.inc.alert.sev].color}" tabindex="0">
+      return `<div class="row ticket ${x.id === S.active ? 'sel' : ''}" data-act="open" data-tk="${x.id}" tabindex="0">
         <div class="when">${x.id}</div>
-        <div class="body"><div class="host">${esc(x.inc.title)} <span class="chip ${st === 'closed' ? 'done' : st === 'new' ? 'new' : ''}">${stLabel}</span></div>
+        <div class="body"><div class="host">${statusIcon(x.inc.alert.sev, { label: SEV[x.inc.alert.sev].label })}${esc(x.inc.title)} <span class="chip ${st === 'closed' ? 'done' : st === 'new' ? 'new' : ''}">${stLabel}</span></div>
         <div class="muted">${esc(x.inc.alert.host)} · ${clock(x.openedAt)} · ${st === 'closed' ? t('ticket.resolvedIn', { min: age, pts: x.result.total }) : t('ticket.openFor', { min: age })}</div></div>
       </div>`;
     }).join('') : `<p class="empty">${t('panel.noTickets')}</p>`;
@@ -191,8 +196,8 @@ function renderPanel() {
 
 function ticketDetail(tk) {
   const closed = tk.closedAt != null;
-  return `<div class="detail" style="--c:${SEV[tk.inc.alert.sev].color}">
-    <div class="dh"><span><b>${tk.id}</b> · ${esc(tk.inc.title)}</span><button class="x" data-act="close-detail" aria-label="${t('ticket.closeDetail')}">×</button></div>
+  return `<div class="detail">
+    <div class="dh"><span>${statusIcon(tk.inc.alert.sev, { label: SEV[tk.inc.alert.sev].label })}<b>${tk.id}</b> · ${esc(tk.inc.title)}</span><button class="x" data-act="close-detail" aria-label="${t('ticket.closeDetail')}">×</button></div>
     <div class="muted">${clock(tk.openedAt)} · ${esc(tk.inc.alert.host)} · ${SEV[tk.inc.alert.sev].label}</div>
     <p>${esc(tk.inc.alert.text)}</p>
     <div class="evh">${t('ticket.evidence', { n: tk.evidence.length })}</div>
@@ -266,7 +271,7 @@ function renderInspector() {
   const d = inspect(S.world, S.sel.kind, S.sel.id);
   if (!d) { panelHide(box); return; }
   panelShow(box, S.sel.kind + ':' + S.sel.id);
-  const LED = { ok: '#30c48d', warn: '#f5c518', crit: '#e5484d', down: '#3a3f4a', off: '#3a3f4a' };
+  const LED = { ok: 'var(--led-on)', warn: 'var(--led-warn)', crit: 'var(--led-crit)', down: 'var(--led-off)', off: 'var(--led-off)' };
   const STL = t('inspector.state');
   const keep = box.querySelector('.ib') ? box.querySelector('.ib').scrollTop : 0;
   const html = `<div class="ih"><div><b>${esc(d.title)}</b><div class="muted small">${esc(d.sub)}</div></div><button class="x" data-act="close-insp" aria-label="${t('inspector.close')}">×</button></div>
@@ -479,7 +484,7 @@ document.addEventListener('click', async (e) => {
   const act = b.dataset.act;
   if (act === 'attach') {
     const tk = S.tickets.find((x) => x.id === S.active);
-    if (!tk || tk.closedAt != null) { toast(t('ticket.needTicket'), 'info'); return; }
+    if (!tk || tk.closedAt != null) { toast(t('ticket.needTicket')); return; }
     const id = b.dataset.ev;
     const i = tk.evidence.findIndex((x) => x.id === id);
     if (i >= 0) tk.evidence.splice(i, 1); else tk.evidence.push({ id, label: b.dataset.label });
@@ -510,7 +515,7 @@ document.addEventListener('click', async (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && e.target.matches('.row.ticket')) openTicket(e.target.dataset.tk);
   if (e.key === 'Escape' && !$('#modal').hidden && $('#resolveform')) closeModal();
-  else if (e.key === 'Escape' && $('#modal').hidden && $('#end').hidden && $('#intro').hidden && scene.detail && !scene.busy && !e.target.matches('input, textarea')) scene.exitRack();
+  else if (e.key === 'Escape' && $('#modal').hidden && $('#end').hidden && $('#intro').hidden && scene.detail && !scene.busy && $('#setpop').hidden && !e.target.matches('input, textarea')) scene.exitRack();
 });
 document.addEventListener('submit', (e) => {
   if (e.target.id === 'noteform') {
@@ -546,7 +551,7 @@ $('#search').addEventListener('keydown', (e) => {
   if (r) { scene.focus('rack', r.id); S.sel = { kind: 'rack', id: r.id }; renderInspector(); }
   else if (q.startsWith('crac')) { const id = q.includes('2') ? 'CRAC-2' : 'CRAC-1'; scene.focus('crac', id); S.sel = { kind: 'crac', id }; renderInspector(); }
   else if (q.startsWith('ups')) { const id = q.includes('b') ? 'UPS-B' : 'UPS-A'; scene.focus('ups', id); S.sel = { kind: 'ups', id }; renderInspector(); }
-  else toast(esc(t('sim.notFound', { q })), 'info');
+  else toast(esc(t('sim.notFound', { q })));
 });
 
 function updateSpeedUI() {
@@ -571,6 +576,24 @@ function start() {
   S.world.log.push({ t: 0, kind: 'sala', text: t('sim.shiftStart') });
   advance(0.01); tickUI();
 }
+
+// ---------- Tema y modo de color ------------------------------------------------------------
+function renderSettings() {
+  const st = getState();
+  $('#themelist').innerHTML = themes().map((th) => `<label class="themeopt"><input type="radio" name="theme" value="${th.id}" ${th.id === st.theme ? 'checked' : ''}><span><b>${esc(th.name.es)}</b><small>${esc(th.description.es)}</small></span></label>`).join('');
+  document.querySelectorAll('[data-scheme]').forEach((b) => { b.classList.toggle('on', b.dataset.scheme === st.mode); b.setAttribute('aria-pressed', b.dataset.scheme === st.mode); });
+}
+function toggleSettings(open) {
+  const pop = $('#setpop');
+  const willOpen = open ?? (pop.hidden || pop.classList.contains('leaving'));
+  $('#setbtn').setAttribute('aria-expanded', willOpen);
+  if (willOpen) { renderSettings(); panelShow(pop, 'set'); } else panelHide(pop);
+}
+$('#setbtn').addEventListener('click', (e) => { e.stopPropagation(); toggleSettings(); });
+$('#setpop').addEventListener('change', (e) => { if (e.target.name === 'theme') setTheme(e.target.value); });
+$('#setpop').addEventListener('click', (e) => { const b = e.target.closest('[data-scheme]'); if (b) { setMode(b.dataset.scheme); renderSettings(); } });
+document.addEventListener('click', (e) => { if (!$('#setpop').hidden && !e.target.closest('.settings')) toggleSettings(false); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#setpop').hidden) { toggleSettings(false); $('#setbtn').focus(); } });
 
 applyI18n();
 $('#startbtn').addEventListener('click', start);

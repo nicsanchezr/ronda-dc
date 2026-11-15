@@ -14,7 +14,8 @@ Mejoras pedidas por Nicolás (15-11-2026), en orden sugerido.
 - Vista trasera: PDU-A/PDU-B verticales con carga, cables de energía por color según la rama, y la puerta trasera.
 - Al hacer clic en un equipo: ficha con modelo ficticio, cliente, IPMI y estado.
 
-## 2. Identidad visual propia + tema claro/oscuro
+## 2. Identidad visual propia + tema claro/oscuro ✅
+- Hecho: tema Gris de sala (por defecto) y Alto rendimiento (ISA-101), cada uno claro/oscuro. Pendiente: dirección «Petróleo y cobre» como `src/themes/petroleo.theme.js`.
 - Romper el parecido con el mockup de referencia: otra paleta (no el azul de acento con barras de colores sobre los racks), otra tipografía, otro estilo de rack y de piso, otro layout del panel lateral y de la cabecera.
 - Interruptor claro/oscuro (y respetar `prefers-color-scheme`), aplicado también a la escena 3D (fondo, piso, iluminación y etiquetas).
 - Mantener contraste WCAG AA y una buena lectura en proyector.

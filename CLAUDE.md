@@ -20,15 +20,21 @@ Ronda DC es un simulador 3D público de un turno de operación en una sala de da
 - `src/scenario.js`: datos de la sala, catálogos (severidades estilo Zabbix, escalamientos, prioridades/SLA), calendario de cambios, accesos, runbooks y los 8 eventos (respuesta esperada, explicación, referencia).
 - `src/sim.js`: estado del mundo, dinámica por minuto (`step`), efectos de cerrar un ticket (`applyClose`), inspección de objetos (`inspect`, incluye fichas `device` y `pdu`), ramas de PSU/PDU (`psuBranches`, `branchPowered`, `pduLoad`) y datos ficticios de equipos (`deviceInfo`, modelos en `MODELS` de `scenario.js`).
 - `src/scene3d.js`: escena Three.js 0.160 (racks, LEDs por equipo, CRAC, UPS, contención, agua, selección, vistas de cámara).
-- `src/rackview.js`: vista de detalle del rack, construida dentro de la misma escena en la posición del rack: 42 U numeradas, equipos con LED de encendido/actividad/estado, PSU y cables por rama (A azul, B naranjo) hacia PDU verticales, paneles ciegos o hueco, puerta trasera, cable de consola. Se abre con doble clic en un rack o con «Ver rack en detalle»; Esc vuelve a la sala.
+- `src/rackview.js`: vista de detalle del rack, construida dentro de la misma escena en la posición del rack: 42 U numeradas, equipos con LED de encendido/actividad/estado, PSU y cables por rama (colores `cord.A`/`cord.B` del tema) hacia PDU verticales, paneles ciegos o hueco, puerta trasera, cable de consola. Se abre con doble clic en un rack o con «Ver rack en detalle»; Esc vuelve a la sala.
 - Transición sala ↔ detalle (`scene3d.js`): un progreso `p` (0 sala, 1 detalle) controla el vuelo de la cámara (~950 ms, con arco sobre los racks), el fundido del detalle, la atenuación de la sala (opacidad + niebla) y la ocultación de lo que tapa el rack (`fade.js`). Frente/trasera rodea el rack en arco. Clics bloqueados mientras `scene.busy`. Con `prefers-reduced-motion`, solo un fundido corto. Los paneles usan `panelShow`/`panelHide` (clases `.entering`/`.leaving`).
 - `src/main.js`: UI (panel con pestañas, inspector, modal de cierre, corrección, fin de turno, informe Markdown).
+- `src/themes/`: un archivo por tema (`sala.theme.js` = Gris de sala, por defecto; `hmi.theme.js` = Alto rendimiento, criterio ISA-101), con tokens para `light` y `dark`: `ui` (variables CSS), `sev`/`onSev`, `led`, `cord`, `heat` y `scene` (materiales, luces y texturas 3D; `scene.rv` = vista de detalle). `base.js` tiene lo común. `index.js` registra los temas, resuelve el modo (claro/oscuro/sistema), lo guarda en localStorage (`ronda-dc-tema`) y escribe las variables CSS. `three.js` es el adaptador para Three.js (`TB.color`, `TB.canvas`, `TB.on`). **Para agregar un tema basta crear `src/themes/<id>.theme.js`**: `build.mjs` descubre los `*.theme.js` solo (módulo `virtual:themes`).
+- **Ningún color escrito a mano fuera de `src/themes/`**: la interfaz usa `var(--…)` y la escena lee los tokens.
+- `src/status.js`: lenguaje de estado común a todos los temas: sin color si está sano; con alarma, contorno + ícono de prioridad (1 cuadrado: Desastre/Alta · 2 rombo: Promedio/Advertencia · 3 triángulo: Información). El halo en el piso es un refuerzo opcional por tema (`scene.halo`).
+- `assets/fonts/`: tipografías woff2 incrustadas en el HTML por `build.mjs` (nombre `Familia-Peso.woff2`, licencias en `LICENCIAS.md`).
+- `tools/contrast.mjs` (`npm run contrast`): verifica WCAG AA de cada tema y modo.
 - `src/i18n/`: textos de la interfaz (`es.js`, idioma inicial) y `t(clave, valores)` / `applyI18n()` en `index.js`. Los textos nuevos de la interfaz van al diccionario, no en duro en el código. Los textos de los escenarios (`scenario.js`, `sim.js`) aún no están centralizados.
 - `template.html`: CSS y estructura (los textos estáticos llevan `data-i18n`, `data-i18n-html`, `data-i18n-list` o `data-i18n-attr`). `build.mjs`: esbuild empaqueta todo en `dist/index.html` (un solo archivo, sin peticiones externas).
 
 ## Comandos
 - `npm install` y luego `node build.mjs` → `dist/index.html`
-- Las pruebas se hicieron con Playwright + Chrome (`--use-gl=swiftshader`) recorriendo los 8 tickets.
+- Las pruebas se hicieron con Playwright + Chrome/Edge recorriendo los 8 tickets. Ojo: con `--use-gl=swiftshader` el fondo de la escena sale negro (defecto de SwiftShader); para revisar colores, usar el renderizado normal del navegador.
+- `npm run contrast` antes de tocar colores de un tema.
 
 ## Convenciones
 - Todo debe ser ficticio (empresa, personas, clientes). No usar marcas reales en el diseño propio.

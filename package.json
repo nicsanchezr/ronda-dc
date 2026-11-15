@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "description": "Ronda DC · Simulador de operación de sala de datacenter",
   "scripts": {
-    "build": "node build.mjs"
+    "build": "node build.mjs",
+    "contrast": "node tools/contrast.mjs"
   },
   "keywords": [],
   "author": "Nicolás Sánchez Rodríguez",

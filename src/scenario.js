@@ -4,13 +4,14 @@
 
 export const SHIFT = { start: 8 * 60, length: 420 }; // 08:00 a 15:00
 
+// Los colores de cada severidad están en los temas (src/themes, grupo sev).
 export const SEV = {
-  disaster: { label: 'Desastre', color: '#e5484d', rank: 5 },
-  high: { label: 'Alta', color: '#ff6b3d', rank: 4 },
-  average: { label: 'Promedio', color: '#ff9f1a', rank: 3 },
-  warning: { label: 'Advertencia', color: '#f5c518', rank: 2 },
-  info: { label: 'Información', color: '#7c8cff', rank: 1 },
-  ok: { label: 'OK', color: '#30c48d', rank: 0 },
+  disaster: { label: 'Desastre', rank: 5 },
+  high: { label: 'Alta', rank: 4 },
+  average: { label: 'Promedio', rank: 3 },
+  warning: { label: 'Advertencia', rank: 2 },
+  info: { label: 'Información', rank: 1 },
+  ok: { label: 'OK', rank: 0 },
 };
 
 export const CLIENTS = {
