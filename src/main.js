@@ -21,10 +21,13 @@ function freshState() {
 // ---------- Escena -----------------------------------------------------------
 const scene = createScene($('#view3d'), {
   onPick(kind, id) { S.sel = { kind, id }; renderInspector(); },
+  onOpenRack(id) { openRackView(id); },
+  onDetail(id) { renderRackUI(id); },
   onHover(u, e) {
     const tip = $('#tip');
     if (!u) { tip.hidden = true; return; }
-    const names = { rack: t('hover.rack', { id: u.id }), crac: u.id, ups: u.id, leak: t('hover.leak'), acs: t('hover.acs') };
+    const [rk, part] = String(u.id).split('/');
+    const names = { rack: t('hover.rack', { id: u.id }), crac: u.id, ups: u.id, leak: t('hover.leak'), acs: t('hover.acs'), device: part, pdu: t('hover.pdu', { b: part, rack: rk }) };
     tip.textContent = names[u.kind] || u.id;
     const r = $('#view3d').getBoundingClientRect();
     tip.style.left = e.clientX - r.left + 14 + 'px'; tip.style.top = e.clientY - r.top + 10 + 'px';
@@ -209,6 +212,31 @@ function openTicket(id) {
   renderPanel(); $('#pane').scrollTop = 0;
 }
 
+// ---------- Vista de detalle del rack ------------------------------------------------------
+function openRackView(id, deviceName) {
+  if (scene.detail !== id) scene.enterRack(id);
+  S.sel = deviceName ? { kind: 'device', id: id + '/' + deviceName } : { kind: 'rack', id };
+  scene.select(S.sel.kind, S.sel.id);
+  if (deviceName) setTimeout(() => { scene.select(S.sel.kind, S.sel.id); scene.focusDevice(deviceName); }, scene.detail === id ? 0 : 1150);
+  renderInspector();
+}
+function renderRackUI(id) {
+  $('#rackbar').hidden = !id;
+  $('#rackleg').hidden = !id;
+  $('.hintbar').hidden = !!id;
+  $('#legend').hidden = !!id || S.mode !== 'calor';
+  if (id) {
+    const def = RACKS.find((r) => r.id === id);
+    $('#racktitle').textContent = t('rackView.title', { id });
+    $('#racksub').textContent = t('rackView.sub', { row: def.row, client: CLIENTS[def.client] });
+    document.querySelectorAll('[data-side]').forEach((b) => b.classList.toggle('on', b.dataset.side === 'front'));
+    if (S.sel && S.sel.kind !== 'rack' && !String(S.sel.id).startsWith(id + '/')) S.sel = { kind: 'rack', id };
+  } else if (S.sel && (S.sel.kind === 'device' || S.sel.kind === 'pdu')) {
+    S.sel = { kind: 'rack', id: S.sel.id.split('/')[0] };
+  }
+  renderInspector();
+}
+
 // ---------- Inspector -------------------------------------------------------------------
 function renderInspector() {
   const box = $('#inspector');
@@ -223,8 +251,10 @@ function renderInspector() {
   <div class="ib">
     <table class="rd">${d.readings.map(([k, v, c]) => `<tr><td>${esc(k)}</td><td class="${c || ''}">${esc(v)}</td></tr>`).join('')}</table>
     ${d.obs.length ? `<div class="evh">${t('inspector.roundObs')}</div>${d.obs.map((o) => `<div class="obs ${o.warn ? 'w' : ''}"><span>${esc(o.text)}</span>${attachBtn(o.id, d.title + ': ' + o.text)}</div>`).join('')}` : ''}
-    ${d.devices ? `<div class="evh">${t('inspector.devicesFront')}</div><table class="dv"><tr><th>${t('inspector.colU')}</th><th>${t('inspector.colDevice')}</th><th>${t('inspector.colPsu')}</th><th>${t('inspector.colState')}</th></tr>${d.devices.map((x) => `<tr><td class="mono">${x.u}${x.h > 1 ? '–' + (x.u + x.h - 1) : ''}</td><td>${esc(x.name)}</td><td class="mono ${x.psu === 'B + B' ? 'warn' : ''}">${x.psu}</td><td><i class="dot" style="background:${LED[x.state]}"></i>${STL[x.state]}</td></tr>`).join('')}</table>` : ''}
+    ${d.devices ? `<div class="evh">${t('inspector.devicesFront')}</div><table class="dv"><tr><th>${t('inspector.colU')}</th><th>${t('inspector.colDevice')}</th><th>${t('inspector.colPsu')}</th><th>${t('inspector.colState')}</th></tr>${d.devices.map((x) => `<tr class="pick" data-act="pick-device" data-rack="${esc(S.sel.id)}" data-dev="${esc(x.name)}" title="${esc(t('inspector.pickDevice', { name: x.name }))}"><td class="mono">${x.u}${x.h > 1 ? '–' + (x.u + x.h - 1) : ''}</td><td>${esc(x.name)}</td><td class="mono ${x.psu === 'B + B' ? 'warn' : ''}">${x.psu}</td><td><i class="dot" style="background:${LED[x.state]}"></i>${STL[x.state]}</td></tr>`).join('')}</table>` : ''}
     ${d.link ? `<button class="btn ghost" data-act="tab" data-tab="${d.link}">${t('inspector.viewAccess')}</button>` : ''}
+    ${S.sel.kind === 'rack' && scene.detail !== S.sel.id ? `<div class="ibtns"><button class="btn ghost" data-act="rack-detail" data-rack="${esc(S.sel.id)}">${t('inspector.viewRack')}</button></div>` : ''}
+    ${d.rack ? `<div class="ibtns"><button class="btn ghost" data-act="insp-rack" data-rack="${esc(d.rack)}">${t('inspector.rackCard', { id: d.rack })}</button>${scene.detail !== d.rack ? `<button class="btn ghost" data-act="rack-detail" data-rack="${esc(d.rack)}">${t('inspector.viewRackOf', { id: d.rack })}</button>` : ''}</div>` : ''}
   </div>`;
   if (box._html === html) return;
   box._html = html; box.innerHTML = html;
@@ -443,6 +473,9 @@ document.addEventListener('click', async (e) => {
   else if (act === 'close-modal') { closeModal(); if (S.ended) $('#end').hidden = false; }
   else if (act === 'close-insp') { S.sel = null; scene.select(null); renderInspector(); }
   else if (act === 'tab') { S.tab = b.dataset.tab; renderPanel(); }
+  else if (act === 'rack-detail') openRackView(b.dataset.rack);
+  else if (act === 'pick-device') openRackView(b.dataset.rack, b.dataset.dev);
+  else if (act === 'insp-rack') { S.sel = { kind: 'rack', id: b.dataset.rack }; scene.select('rack', b.dataset.rack); renderInspector(); }
   else if (act === 'restart') { location.hash = ''; boot(); $('#end').hidden = true; start(); }
   else if (act === 'copy') {
     try { await navigator.clipboard.writeText(report()); $('#copymsg').textContent = t('end.copied'); }
@@ -454,6 +487,7 @@ document.addEventListener('click', async (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && e.target.matches('.row.ticket')) openTicket(e.target.dataset.tk);
   if (e.key === 'Escape' && !$('#modal').hidden && $('#resolveform')) closeModal();
+  else if (e.key === 'Escape' && $('#modal').hidden && $('#end').hidden && $('#intro').hidden && scene.detail && !e.target.matches('input, textarea')) scene.exitRack();
 });
 document.addEventListener('submit', (e) => {
   if (e.target.id === 'noteform') {
@@ -464,7 +498,7 @@ document.addEventListener('submit', (e) => {
 document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => { S.tab = b.dataset.tab; renderPanel(); $('#pane').scrollTop = 0; }));
 document.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => {
   S.mode = b.dataset.mode; document.querySelectorAll('[data-mode]').forEach((x) => x.classList.toggle('on', x === b));
-  $('#legend').hidden = S.mode !== 'calor'; scene.update(S.world, S.mode, sevMap());
+  $('#legend').hidden = S.mode !== 'calor' || !!scene.detail; scene.update(S.world, S.mode, sevMap());
 }));
 document.querySelectorAll('[data-speed]').forEach((b) => b.addEventListener('click', () => {
   S.speed = Number(b.dataset.speed); S.running = true; updateSpeedUI();
@@ -473,6 +507,11 @@ $('#pause').addEventListener('click', () => { S.running = !S.running; updateSpee
 $('#skip').addEventListener('click', skipToNext);
 $('#endbtn').addEventListener('click', () => { if (S.ended) { $('#end').hidden = false; return; } const n = openTickets().length; if (n && !$('#endbtn').dataset.confirm) { $('#endbtn').dataset.confirm = '1'; $('#endbtn').textContent = t('header.endConfirm', { n }); setTimeout(() => { $('#endbtn').textContent = t('header.end'); delete $('#endbtn').dataset.confirm; }, 3000); return; } endShift(); });
 document.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => scene.setView(b.dataset.view)));
+$('#rackback').addEventListener('click', () => scene.exitRack());
+document.querySelectorAll('[data-side]').forEach((b) => b.addEventListener('click', () => {
+  scene.rackSide(b.dataset.side);
+  document.querySelectorAll('[data-side]').forEach((x) => x.classList.toggle('on', x === b));
+}));
 $('#zin').addEventListener('click', () => scene.zoom(0.8));
 $('#zout').addEventListener('click', () => scene.zoom(1.25));
 $('#rot').addEventListener('click', () => $('#rot').classList.toggle('on', scene.toggleRotate()));
@@ -494,6 +533,7 @@ function updateSpeedUI() {
 }
 
 function boot() {
+  if (scene.detail) scene.exitRack(false);
   S = freshState();
   S.lastMinute = -1;
   $('#clock').textContent = clock(0);

@@ -2,7 +2,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RACKS, SEV } from './scenario.js';
-import { deviceState, rackMaxInlet, readTop, fmt1 } from './sim.js';
+import { deviceState, rackMaxInlet, fmt1 } from './sim.js';
+import { createRackView } from './rackview.js';
 
 const U = 0.0445;
 const RW = 0.6, RD = 1.1, RH = 2.0;
@@ -236,7 +237,7 @@ export function createScene(container, handlers) {
     const r = renderer.domElement.getBoundingClientRect();
     ndc.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(ndc, camera);
-    const hit = ray.intersectObjects(pickables, false).find((h) => h.object.userData && h.object.userData.kind);
+    const hit = ray.intersectObjects(detail ? RV.pickables : pickables, false).find((h) => h.object.visible && h.object.userData && h.object.userData.kind);
     return hit ? hit.object.userData : null;
   }
   renderer.domElement.addEventListener('pointerdown', (e) => { downPos = [e.clientX, e.clientY]; });
@@ -255,6 +256,11 @@ export function createScene(container, handlers) {
     handlers.onHover(u, e);
   });
   renderer.domElement.addEventListener('pointerleave', () => handlers.onHover(null));
+  renderer.domElement.addEventListener('dblclick', (e) => {
+    if (detail) return;
+    const u = pick(e);
+    if (u && u.kind === 'rack' && handlers.onOpenRack) handlers.onOpenRack(u.id);
+  });
 
   function objectFor(kind, id) {
     if (kind === 'rack') return racks[id].g;
@@ -265,20 +271,22 @@ export function createScene(container, handlers) {
     return null;
   }
   function select(kind, id) {
-    const o = kind ? objectFor(kind, id) : null;
+    if (detail) { RV.select(kind, id); return; }
+    const o = kind && kind !== 'device' && kind !== 'pdu' ? objectFor(kind, id) : null;
     selected = o;
     if (o) { selBox.setFromObject(o); selBox.visible = true; } else selBox.visible = false;
   }
 
   // Vistas de cámara
   let anim = null;
-  function flyTo(pos, target, ms = 700) {
+  function flyTo(pos, target, ms = 700, done) {
     const p0 = camera.position.clone(), t0 = controls.target.clone();
-    const start = performance.now();
+    let start = null; // se toma del primer frame para no mezclar relojes
     anim = (now) => {
+      if (start === null) start = now;
       const k = Math.min(1, (now - start) / ms); const e = 1 - Math.pow(1 - k, 3);
       camera.position.lerpVectors(p0, pos, e); controls.target.lerpVectors(t0, target, e);
-      if (k >= 1) anim = null;
+      if (k >= 1) { anim = null; if (done) done(); }
     };
   }
   const VIEWS = {
@@ -287,8 +295,10 @@ export function createScene(container, handlers) {
     aisle: [new THREE.Vector3(4.6, 1.6, 0), new THREE.Vector3(0.6, 1.0, 0)],
   };
   camera.position.copy(VIEWS.iso[0]);
-  function setView(name) { const v = VIEWS[name]; if (v) flyTo(v[0].clone(), v[1].clone()); }
+  function setView(name) { if (detail) exitRack(false); const v = VIEWS[name]; if (v) flyTo(v[0].clone(), v[1].clone()); }
   function focus(kind, id) {
+    if (detail && kind === 'rack' && id === detail) { RV.select(null); return; }
+    if (detail) exitRack(false);
     const o = objectFor(kind, id); if (!o) return;
     const box = new THREE.Box3().setFromObject(o); const c = box.getCenter(new THREE.Vector3());
     let off;
@@ -308,12 +318,63 @@ export function createScene(container, handlers) {
   new ResizeObserver(resize).observe(container);
   resize();
 
+  // ---------- Vista de detalle del rack -------------------------------------------------
+  const RV = createRackView();
+  let detail = null, roomCam = null, side = 'front';
+  // el rack queda a la derecha del centro para no quedar bajo el inspector
+  const detailTarget = (sd) => new THREE.Vector3(sd === 'front' ? -0.32 : 0.32, 1.0, 0);
+  const sideCam = (sd) => new THREE.Vector3(sd === 'front' ? 0.05 : -0.05, 1.2, sd === 'front' ? 3.7 : -3.7);
+  function enterRack(id) {
+    if (detail === id) return;
+    const fromRoom = !detail;
+    if (fromRoom) roomCam = { pos: camera.position.clone(), target: controls.target.clone() };
+    const swap = () => {
+      RV.build(id, world); detail = id; side = 'front';
+      selBox.visible = false;
+      controls.minDistance = 0.3; controls.maxDistance = 6; controls.maxPolarAngle = Math.PI * 0.62;
+      controls.autoRotate = false;
+      camera.position.copy(sideCam('front')).multiplyScalar(1.5); controls.target.copy(detailTarget('front'));
+      flyTo(sideCam('front'), detailTarget('front'), 650);
+      if (handlers.onDetail) handlers.onDetail(id);
+    };
+    if (fromRoom) {
+      const R = racks[id];
+      const c = new THREE.Vector3(); R.g.getWorldPosition(c); c.y = 1.0;
+      const front = new THREE.Vector3(0, 0, 1).applyQuaternion(R.g.quaternion);
+      flyTo(c.clone().add(front.multiplyScalar(1.2)), c, 420, swap);
+    } else swap();
+  }
+  function exitRack(restore = true) {
+    if (!detail) return;
+    const id = detail;
+    RV.clear(); detail = null; anim = null;
+    controls.minDistance = 2.2; controls.maxDistance = 16; controls.maxPolarAngle = Math.PI * 0.49;
+    controls.autoRotate = autoRotate;
+    const R = racks[id];
+    const c = new THREE.Vector3(); R.g.getWorldPosition(c); c.y = 1.0;
+    const front = new THREE.Vector3(0, 0, 1).applyQuaternion(R.g.quaternion);
+    camera.position.copy(c).add(front.multiplyScalar(2.3)); controls.target.copy(c);
+    if (restore && roomCam) flyTo(roomCam.pos, roomCam.target, 650);
+    if (handlers.onDetail) handlers.onDetail(null);
+  }
+  function rackSide(sd) {
+    if (!detail) return;
+    side = sd;
+    flyTo(sideCam(sd), detailTarget(sd), 750);
+  }
+  function focusDevice(name) {
+    const p = RV.deviceCenter(name); if (!p) return;
+    const z = side === 'front' ? 1 : -1;
+    flyTo(new THREE.Vector3(p.x - 0.1 * z, p.y + 0.12, z * 1.35), new THREE.Vector3(-0.22 * z, p.y, 0), 600);
+  }
+
   let world = null, mode = 'estado', sevMap = {}, pulse = 0;
   const C = (hex) => new THREE.Color(hex);
   const LED = { ok: C(0x30c48d), warn: C(0xf5c518), crit: C(0xe5484d), down: C(0x14171d), off: C(0x2a2f39) };
 
   function sync() {
     if (!world) return;
+    if (detail) RV.sync(world);
     for (const def of RACKS) {
       const R = racks[def.id], rk = world.racks[def.id];
       const real = rackMaxInlet(world, def.id);
@@ -353,6 +414,7 @@ export function createScene(container, handlers) {
   function loop(now) {
     requestAnimationFrame(loop);
     if (anim) anim(now);
+    if (detail) { RV.animate(now); controls.update(); renderer.render(RV.scene, camera); return; }
     pulse = (Math.sin(now / 260) + 1) / 2;
     if (world) {
       leakZone.material.opacity = world.leak.active ? 0.15 + 0.25 * pulse : 0.0;
@@ -373,7 +435,8 @@ export function createScene(container, handlers) {
   let autoRotate = false;
   return {
     update(w, m, sev) { world = w; mode = m; sevMap = sev; sync(); },
-    setView, focus, select,
+    setView, focus, select, enterRack, exitRack, rackSide, focusDevice,
+    get detail() { return detail; },
     toggleRotate() { autoRotate = !autoRotate; controls.autoRotate = autoRotate; controls.autoRotateSpeed = 0.8; return autoRotate; },
     zoom(f) { const d = camera.position.clone().sub(controls.target).multiplyScalar(f); const len = d.length(); if (len > controls.minDistance && len < controls.maxDistance) camera.position.copy(controls.target).add(d); },
   };

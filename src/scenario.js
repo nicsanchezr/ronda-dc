@@ -35,6 +35,19 @@ export const RACKS = [
   { id: 'R10', client: 'logistica', row: 'B', devices: [D('sw-dist-01', 40, 1, 'switch'), D('sw-dist-02', 38, 1, 'switch'), D('pp-01', 36, 1, 'patch'), D('pp-02', 35, 1, 'patch'), D('srv-dns01', 30, 1, 'server'), D('srv-ntp01', 28, 1, 'server')] },
 ];
 
+// Modelos ficticios por tipo de equipo (ficha de la vista de detalle del rack).
+// prof: profundidad en metros; mgmt: 'ipmi' (BMC del servidor), 'mgmt' (puerto de gestión) o null.
+export const MODELS = {
+  server1: { model: 'Cumbre R110 · servidor 1U', prof: 0.72, mgmt: 'ipmi' },
+  server2: { model: 'Cumbre R220 · servidor 2U', prof: 0.76, mgmt: 'ipmi' },
+  storage: { model: 'Glaciar S400 · almacenamiento 4U (24 discos)', prof: 0.8, mgmt: 'ipmi' },
+  switch: { model: 'Nodo SW-48 · switch 48 × 10 GbE', prof: 0.45, mgmt: 'mgmt' },
+  firewall: { model: 'Muralla F1 · firewall perimetral', prof: 0.5, mgmt: 'mgmt' },
+  router: { model: 'Paso R2 · router de borde 2U', prof: 0.55, mgmt: 'mgmt' },
+  patch: { model: 'Panel de parcheo 24 × RJ45 Cat 6A', prof: 0.12, mgmt: null },
+};
+export const modelOf = (d) => MODELS[d.type === 'server' ? (d.h >= 2 ? 'server2' : 'server1') : d.type] || MODELS.server1;
+
 export const ESCALATIONS = [
   { id: 'nadie', label: 'No escalar: se resuelve en el turno' },
   { id: 'jefe', label: 'Jefe de turno' },

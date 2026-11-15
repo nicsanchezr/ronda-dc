@@ -18,8 +18,9 @@ Ronda DC es un simulador 3D público de un turno de operación en una sala de da
 
 ## Estructura
 - `src/scenario.js`: datos de la sala, catálogos (severidades estilo Zabbix, escalamientos, prioridades/SLA), calendario de cambios, accesos, runbooks y los 8 eventos (respuesta esperada, explicación, referencia).
-- `src/sim.js`: estado del mundo, dinámica por minuto (`step`), efectos de cerrar un ticket (`applyClose`), inspección de objetos (`inspect`).
+- `src/sim.js`: estado del mundo, dinámica por minuto (`step`), efectos de cerrar un ticket (`applyClose`), inspección de objetos (`inspect`, incluye fichas `device` y `pdu`), ramas de PSU/PDU (`psuBranches`, `branchPowered`, `pduLoad`) y datos ficticios de equipos (`deviceInfo`, modelos en `MODELS` de `scenario.js`).
 - `src/scene3d.js`: escena Three.js 0.160 (racks, LEDs por equipo, CRAC, UPS, contención, agua, selección, vistas de cámara).
+- `src/rackview.js`: vista de detalle del rack (escena aparte): 42 U numeradas, equipos con LED de encendido/actividad/estado, PSU y cables por rama (A azul, B naranjo) hacia PDU verticales, paneles ciegos o hueco, puerta trasera, cable de consola. Se abre con doble clic en un rack o con «Ver rack en detalle»; Esc vuelve a la sala.
 - `src/main.js`: UI (panel con pestañas, inspector, modal de cierre, corrección, fin de turno, informe Markdown).
 - `src/i18n/`: textos de la interfaz (`es.js`, idioma inicial) y `t(clave, valores)` / `applyI18n()` en `index.js`. Los textos nuevos de la interfaz van al diccionario, no en duro en el código. Los textos de los escenarios (`scenario.js`, `sim.js`) aún no están centralizados.
 - `template.html`: CSS y estructura (los textos estáticos llevan `data-i18n`, `data-i18n-html`, `data-i18n-list` o `data-i18n-attr`). `build.mjs`: esbuild empaqueta todo en `dist/index.html` (un solo archivo, sin peticiones externas).

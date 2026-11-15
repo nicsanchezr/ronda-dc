@@ -114,6 +114,14 @@ textarea{width:100%;background:#11141a;border:1px solid var(--line);color:var(--
 .intro .box{background:var(--panel);border-radius:10px;padding:10px 14px;font-size:13px}.intro .box b{display:block;margin-bottom:4px}
 .intro ul{margin:4px 0;padding-left:18px}
 .kicker{color:var(--acc);font-weight:700;font-size:12px;letter-spacing:.1em;text-transform:uppercase}
+#rackbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;background:rgba(23,27,36,.95);border:1px solid var(--line);border-radius:10px;padding:5px 6px 5px 6px}
+#rackbar b{font-size:14px;white-space:nowrap}#rackbar .sub{color:var(--mut);font-size:12px;white-space:nowrap}
+#rackback{background:#252c3a;border:0;border-radius:7px;padding:6px 10px;cursor:pointer;font-size:12.5px;font-weight:600}
+#rackleg{position:absolute;right:60px;bottom:10px;display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;max-width:calc(100% - 90px);font-size:11.5px;color:var(--mut);background:rgba(18,21,28,.88);border:1px solid var(--line);padding:5px 10px;border-radius:8px}
+#rackleg b{color:var(--txt);font-weight:600}#rackleg i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}#rackleg i.cord{width:18px;height:4px;border-radius:2px;vertical-align:2px}
+#rackleg i.blink{animation:blink 1s steps(2,start) infinite}@keyframes blink{to{visibility:hidden}}
+.dv tr.pick{cursor:pointer}.dv tr.pick:hover td{background:#232a37}
+.ibtns{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
 @media (max-width:980px){
   #app{height:auto;min-height:100vh}
   main{grid-template-columns:1fr}
@@ -124,7 +132,7 @@ textarea{width:100%;background:#11141a;border:1px solid var(--line);color:var(--
   .endgrid{grid-template-columns:1fr 1fr}.intro .grid{grid-template-columns:1fr}
   .opts,.opts.four{grid-template-columns:1fr 1fr}
 }
-@media (prefers-reduced-motion:reduce){.toast{animation:none}}
+@media (prefers-reduced-motion:reduce){.toast{animation:none}#rackleg i.blink{animation:none}}
 </style>
 </head>
 <body>
@@ -141,7 +149,13 @@ textarea{width:100%;background:#11141a;border:1px solid var(--line);color:var(--
 <main>
   <section id="stage" aria-label="Vista 3D de la sala" data-i18n-attr="aria-label:stage.aria">
     <div id="view3d"></div>
-    <div class="vtop"></div>
+    <div class="vtop">
+      <div id="rackbar" hidden>
+        <button id="rackback" data-i18n="rackView.back">← Volver a la sala</button>
+        <div><b id="racktitle"></b> <span class="sub" id="racksub"></span></div>
+        <div class="seg" role="group" aria-label="Lado del rack" data-i18n-attr="aria-label:rackView.sideGroup"><button data-side="front" class="on" data-i18n="rackView.front">Frente</button><button data-side="rear" data-i18n="rackView.rear">Trasera</button></div>
+      </div>
+    </div>
     <div class="vtools">
       <button id="zin" title="Acercar" aria-label="Acercar" data-i18n-attr="title:stage.zoomIn;aria-label:stage.zoomIn">+</button>
       <button id="zout" title="Alejar" aria-label="Alejar" data-i18n-attr="title:stage.zoomOut;aria-label:stage.zoomOut">−</button>
@@ -151,6 +165,17 @@ textarea{width:100%;background:#11141a;border:1px solid var(--line);color:var(--
       <button data-view="aisle" title="Dentro del pasillo frío" aria-label="Vista del pasillo frío" data-i18n-attr="title:stage.viewAisle;aria-label:stage.viewAisleAria">⌂</button>
     </div>
     <div id="legend" hidden><span data-i18n="stage.legend">Temperatura de entrada</span><div class="grad"></div><div class="lbl"><span>18 °C</span><span>27 °C</span><span>42 °C</span></div></div>
+    <div id="rackleg" hidden>
+      <span><b data-i18n="rackView.ledsTitle">LED</b></span>
+      <span><i style="background:#30c48d"></i><span data-i18n="rackView.ledOn">Encendido</span></span>
+      <span><i class="blink" style="background:#7ee2a8"></i><span data-i18n="rackView.ledAct">Actividad</span></span>
+      <span><i style="background:#f5c518"></i><span data-i18n="rackView.ledWarn">Advertencia</span></span>
+      <span><i style="background:#e5484d"></i><span data-i18n="rackView.ledCrit">Falla</span></span>
+      <span><i style="background:#1a1d24;outline:1px solid #3a4150"></i><span data-i18n="rackView.ledOff">Apagado</span></span>
+      <span><b data-i18n="rackView.cordsTitle">Cables de energía</b></span>
+      <span><i class="cord" style="background:#3b82f6"></i><span data-i18n="rackView.cordA">Rama A (UPS-A)</span></span>
+      <span><i class="cord" style="background:#f97316"></i><span data-i18n="rackView.cordB">Rama B (UPS-B)</span></span>
+    </div>
     <div id="inspector" hidden></div>
     <div id="tip" hidden></div>
     <div class="hintbar" data-i18n="stage.hint">Arrastra para girar · rueda para zoom · clic derecho para mover · clic en un equipo para inspeccionar</div>

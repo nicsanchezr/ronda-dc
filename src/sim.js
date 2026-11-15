@@ -1,6 +1,7 @@
 // Motor de simulación: estado de la sala, dinámica física simple,
 // efectos de las decisiones e inspección de objetos.
-import { RACKS, INCIDENTS, SHIFT, CLIENTS } from './scenario.js';
+import { RACKS, INCIDENTS, SHIFT, CLIENTS, modelOf } from './scenario.js';
+import { t as tr } from './i18n/index.js';
 
 const BASE = { R01: 21.6, R02: 21.9, R03: 22.1, R04: 22.0, R05: 21.8, R06: 22.3, R07: 22.0, R08: 22.0, R09: 21.7, R10: 21.5 };
 const ROW_B = ['R06', 'R07', 'R08', 'R09', 'R10'];
@@ -167,6 +168,39 @@ export function deviceState(w, rackId, d) {
   return 'ok';
 }
 
+// --- Fuentes, PDU y datos de cada equipo ----------------------------------------
+/** Rama de PDU a la que va cada fuente del equipo: ['A','B'], ['B','B'] o [] (sin fuentes). */
+export function psuBranches(w, rackId, d) {
+  if (d.type === 'patch') return [];
+  if (d.name === 'k8s-n7') return w.flags.n7psu === 'BB' ? ['B', 'B'] : ['A', 'B'];
+  return d.psu === 'BB' ? ['B', 'B'] : ['A', 'B'];
+}
+/** ¿Hay energía en esa rama de PDU del rack? */
+export function branchPowered(w, rackId, branch) {
+  if (w.t < w.flags.powerCutUntil) return false;
+  if (branch === 'B' && rackId === 'R06' && w.flags.breaker) return false;
+  return true;
+}
+export function pduLoad(w, rackId, branch) {
+  const rk = w.racks[rackId];
+  if (!branchPowered(w, rackId, branch)) return 0;
+  return branch === 'A' ? rk.pduA : rk.pduB;
+}
+/** Datos fijos (ficticios) de un equipo: modelo, serie y dirección de gestión. */
+export function deviceInfo(rackId, d) {
+  const m = modelOf(d);
+  const n = Number(rackId.slice(1));
+  return {
+    model: m.model, prof: m.prof, mgmt: m.mgmt,
+    serial: 'CC' + String(n).padStart(2, '0') + '-' + String(d.u).padStart(2, '0') + d.name.length + 'K' + ((n * 7 + d.u * 3) % 10),
+    ip: m.mgmt ? `10.40.${n}.${10 + d.u}` : null,
+  };
+}
+export function findDevice(rackId, name) {
+  const def = RACKS.find((r) => r.id === rackId);
+  return def ? def.devices.find((d) => d.name === name) : null;
+}
+
 // --- Efectos de cerrar un ticket ---------------------------------------------
 export function applyClose(w, inc, ans) {
   const has = (a) => ans.actions.includes(a);
@@ -263,7 +297,7 @@ export function inspect(w, kind, id) {
     if (obs.length === 1) obs.push({ id: 'obs:' + id.toLowerCase() + '-ok', text: 'Sin novedades visibles en la ronda.' });
     const devices = def.devices.map((d) => ({
       name: d.name, u: d.u, h: d.h, type: d.type,
-      psu: d.name === 'k8s-n7' ? (w.flags.n7psu === 'BB' ? 'B + B' : 'A + B') : d.type === 'patch' ? '—' : 'A + B',
+      psu: psuBranches(w, id, d).join(' + ') || '—',
       state: deviceState(w, id, d),
     })).sort((a, b) => b.u - a.u);
     return { title: 'Rack ' + id, sub: 'Fila ' + def.row + ' · ' + CLIENTS[def.client], readings, obs, devices };
@@ -313,6 +347,54 @@ export function inspect(w, kind, id) {
       obs.push({ id: 'obs:leak-cables', warn: true, text: 'La canalización de energía pasa a unos 40 cm del agua.' });
     } else obs.push({ id: 'obs:leak-ok', text: 'Piso técnico seco.' });
     return { title: 'Detección de fugas', sub: 'Cable sensor bajo el piso técnico', readings, obs };
+  }
+  if (kind === 'device') {
+    const [rackId, name] = id.split('/');
+    const def = RACKS.find((r) => r.id === rackId);
+    const d = findDevice(rackId, name);
+    if (!d) return null;
+    const info = deviceInfo(rackId, d);
+    const st = deviceState(w, rackId, d);
+    const rk = w.racks[rackId];
+    const stCls = { ok: '', warn: 'warn', crit: 'bad', down: 'bad', off: '' }[st];
+    const range = d.h > 1 ? `U${d.u}–U${d.u + d.h - 1}` : `U${d.u}`;
+    const readings = [
+      [tr('device.model'), info.model],
+      [tr('device.client'), CLIENTS[def.client]],
+      [tr('device.location'), tr('device.locationVal', { rack: rackId, range })],
+      [tr('device.serial'), info.serial],
+    ];
+    if (info.mgmt) readings.push([tr(info.mgmt === 'ipmi' ? 'device.ipmi' : 'device.mgmtIp'), info.ip]);
+    readings.push([tr('device.state'), tr('device.st.' + st), stCls]);
+    psuBranches(w, rackId, d).forEach((b, i) => {
+      const ok = branchPowered(w, rackId, b);
+      readings.push([tr('device.psu', { n: i + 1 }), tr(ok ? 'device.psuOk' : 'device.psuNoInput', { pdu: 'PDU-' + b }), ok ? '' : 'bad']);
+    });
+    if (info.mgmt === 'ipmi' && st !== 'down') {
+      const inlet = d.u >= 32 ? rackMaxInlet(w, rackId) : rk.temp;
+      readings.push([tr('device.inlet'), fmt1(inlet + 0.6) + ' °C', cls(inlet + 0.6)]);
+    }
+    const obs = [];
+    if (d.name === 'k8s-n7' && w.flags.n7psu === 'BB') obs.push({ id: 'obs:r06-psu', warn: true, text: 'k8s-n7 (U23–U24): PSU1 → PDU-B y PSU2 → PDU-B.' });
+    if (d.name === 'fw-01' && w.flags.cable) obs.push({ id: 'obs:r02-cable', warn: true, text: 'Cable de consola azul conectado al puerto de consola de fw-01; no figura en el inventario del rack.' });
+    if (d.name === 'stg-02' && w.flags.techInRoom) obs.push({ id: 'obs:r07-tech', text: 'Técnico de Dell (credencial P-0412) reemplazando el disco 3 de stg-02. El equipo sigue encendido.' });
+    return { title: name, sub: tr('device.sub', { rack: rackId, range }), readings, obs, rack: rackId };
+  }
+  if (kind === 'pdu') {
+    const [rackId, b] = id.split('/');
+    const on = branchPowered(w, rackId, b);
+    const load = pduLoad(w, rackId, b);
+    const def = RACKS.find((r) => r.id === rackId);
+    const fed = def.devices.filter((d) => psuBranches(w, rackId, d).includes(b)).map((d) => d.name);
+    const readings = [
+      [tr('pdu.state'), on ? tr('pdu.on') : tr('pdu.tripped'), on ? '' : 'bad'],
+      [tr('pdu.load'), Math.round(load) + ' %', load >= 80 ? 'bad' : load >= 60 ? 'warn' : ''],
+      [tr('pdu.feed'), b === 'A' ? 'UPS-A' : 'UPS-B'],
+      [tr('pdu.devices'), fed.join(', ') || '—'],
+    ];
+    const obs = [];
+    if (rackId === 'R06') obs.push({ id: 'obs:r06-pdu', warn: w.racks.R06.pduB >= 80, text: `Pantallas de las PDU: A ${Math.round(w.racks.R06.pduA)} % · B ${w.flags.breaker ? 'disparada' : Math.round(w.racks.R06.pduB) + ' %'}.` });
+    return { title: `PDU-${b} · ${rackId}`, sub: tr('pdu.sub'), readings, obs, rack: rackId };
   }
   if (kind === 'acs') {
     return { title: 'Lector de acceso · Sala A', sub: 'Control de acceso con tarjeta', readings: [['Estado', 'Operando']], obs: [], link: 'accesos' };

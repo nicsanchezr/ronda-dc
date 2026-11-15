@@ -1,13 +1,13 @@
 # Roadmap · Ronda DC v0.2
 
-## 0. Cambio de nombre a Ronda DC
+## 0. Cambio de nombre a Ronda DC ✅
 - Reemplazar "Turno de Sala" por "Ronda DC" en el título, la cabecera, la portada, el informe Markdown, la clave de localStorage (`ronda-dc-ultimo`, migrando la anterior si existe), package.json y README.
 - Crear un logotipo propio sencillo (SVG en línea) coherente con la nueva identidad visual del punto 2.
 - Centralizar los textos de la interfaz en un diccionario (`src/i18n/es.js`) para preparar la versión en inglés.
 
 Mejoras pedidas por Nicolás (15-11-2026), en orden sugerido.
 
-## 1. Vista de detalle del rack (zoom a nivel de U)
+## 1. Vista de detalle del rack (zoom a nivel de U) ✅
 - Al hacer doble clic en un rack (o con el botón "Ver rack"), la cámara entra a una vista frontal y trasera del rack.
 - Se muestran las 42 U, ocupadas y libres, con numeración visible.
 - Cada equipo con sus LED por estado (encendido, actividad parpadeante, advertencia, falla, apagado), fuentes PSU1/PSU2 y a qué PDU van, y paneles ciegos (o el hueco donde faltan).
