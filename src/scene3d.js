@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RACKS, SEV } from './scenario.js';
 import { deviceState, rackMaxInlet, fmt1 } from './sim.js';
 import { createRackView } from './rackview.js';
+import { fadeRecord, setFade, collectMaterials, easeInOut, smoothstep } from './fade.js';
 
 const U = 0.0445;
 const RW = 0.6, RD = 1.1, RH = 2.0;
@@ -98,6 +99,7 @@ export function createScene(container, handlers) {
   // Piso técnico
   const tt = tileTexture(); tt.repeat.set(16, 13);
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(9.6, 7.8), new THREE.MeshStandardMaterial({ map: tt, roughness: 0.9 }));
+  floor.userData.noFade = true;
   floor.rotation.x = -Math.PI / 2; floor.position.set(1.24, 0, 0); scene.add(floor);
   const perf = new THREE.MeshStandardMaterial({ map: perforatedTexture(), roughness: 0.7, emissive: 0x0b2346, emissiveIntensity: 0.6 });
   for (let i = 0; i < 5; i++) for (let j = 0; j < 2; j++) {
@@ -215,8 +217,9 @@ export function createScene(container, handlers) {
 
   // Zona de detección de fugas (junto a CRAC-1)
   const leakZone = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.6), new THREE.MeshBasicMaterial({ color: 0xf5c518, transparent: true, opacity: 0.0, depthWrite: false }));
+
   leakZone.rotation.x = -Math.PI / 2; leakZone.position.set(1.24, 0.004, -2.33); scene.add(leakZone);
-  leakZone.userData = { kind: 'leak', id: 'LEAK-Z3' }; pickables.push(leakZone);
+  leakZone.userData = { kind: 'leak', id: 'LEAK-Z3', noFade: true }; pickables.push(leakZone);
   const rope = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.006, 0.012), new THREE.MeshBasicMaterial({ color: 0xc9a227 }));
   rope.position.set(1.24, 0.006, -2.45); scene.add(rope);
   rope.userData = leakZone.userData; pickables.push(rope);
@@ -242,7 +245,7 @@ export function createScene(container, handlers) {
   }
   renderer.domElement.addEventListener('pointerdown', (e) => { downPos = [e.clientX, e.clientY]; });
   renderer.domElement.addEventListener('pointerup', (e) => {
-    if (!downPos || e.button !== 0) return;
+    if (!downPos || e.button !== 0 || busy) { downPos = null; return; }
     const moved = Math.hypot(e.clientX - downPos[0], e.clientY - downPos[1]);
     downPos = null;
     if (moved > 6) return;
@@ -250,14 +253,14 @@ export function createScene(container, handlers) {
     if (u) { select(u.kind, u.id); handlers.onPick(u.kind, u.id); }
   });
   renderer.domElement.addEventListener('pointermove', (e) => {
-    if (e.buttons) return;
+    if (e.buttons || busy) return;
     const u = pick(e);
     renderer.domElement.style.cursor = u ? 'pointer' : 'grab';
     handlers.onHover(u, e);
   });
   renderer.domElement.addEventListener('pointerleave', () => handlers.onHover(null));
   renderer.domElement.addEventListener('dblclick', (e) => {
-    if (detail) return;
+    if (detail || busy) return;
     const u = pick(e);
     if (u && u.kind === 'rack' && handlers.onOpenRack) handlers.onOpenRack(u.id);
   });
@@ -277,28 +280,48 @@ export function createScene(container, handlers) {
     if (o) { selBox.setFromObject(o); selBox.visible = true; } else selBox.visible = false;
   }
 
-  // Vistas de cámara
-  let anim = null;
-  function flyTo(pos, target, ms = 700, done) {
-    const p0 = camera.position.clone(), t0 = controls.target.clone();
+  // ---------- Animaciones de cámara --------------------------------------------------------
+  const reduceMotion = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
+  let anim = null; // función por frame (now) → true cuando termina
+  let busy = false; // transición sala ↔ detalle o frente ↔ trasera en curso
+  function run(ms, step, done, ease = easeInOut) {
     let start = null; // se toma del primer frame para no mezclar relojes
     anim = (now) => {
       if (start === null) start = now;
-      const k = Math.min(1, (now - start) / ms); const e = 1 - Math.pow(1 - k, 3);
-      camera.position.lerpVectors(p0, pos, e); controls.target.lerpVectors(t0, target, e);
+      const k = ms <= 0 ? 1 : Math.min(1, (now - start) / ms);
+      step(ease(k), k);
       if (k >= 1) { anim = null; if (done) done(); }
     };
   }
+  function flyTo(pos, target, ms = 700, done) {
+    const p0 = camera.position.clone(), t0 = controls.target.clone();
+    run(ms, (e) => { camera.position.lerpVectors(p0, pos, e); controls.target.lerpVectors(t0, target, e); }, done, (k) => 1 - Math.pow(1 - k, 3));
+  }
+  function setBusy(b) { busy = b; controls.enabled = !b; if (b) handlers.onHover && handlers.onHover(null); container.classList.toggle('busy', b); }
+  // Con prefers-reduced-motion: sin vuelo, solo un fundido corto del lienzo.
+  function fadeCut(apply, done) {
+    const cv = renderer.domElement;
+    cv.style.transition = 'opacity 120ms ease';
+    cv.style.opacity = '0';
+    setTimeout(() => { apply(); cv.style.opacity = '1'; setTimeout(() => { cv.style.transition = ''; if (done) done(); }, 130); }, 130);
+  }
+
   const VIEWS = {
     iso: [new THREE.Vector3(6.4, 5.2, 6.6), CENTER],
     top: [new THREE.Vector3(1.25, 10.5, 0.01), new THREE.Vector3(1.24, 0, 0)],
     aisle: [new THREE.Vector3(4.6, 1.6, 0), new THREE.Vector3(0.6, 1.0, 0)],
   };
   camera.position.copy(VIEWS.iso[0]);
-  function setView(name) { if (detail) exitRack(false); const v = VIEWS[name]; if (v) flyTo(v[0].clone(), v[1].clone()); }
+  function setView(name) {
+    if (busy) return;
+    const v = VIEWS[name]; if (!v) return;
+    if (detail) { exitRack(() => flyTo(v[0].clone(), v[1].clone())); return; }
+    flyTo(v[0].clone(), v[1].clone());
+  }
   function focus(kind, id) {
+    if (busy) return;
     if (detail && kind === 'rack' && id === detail) { RV.select(null); return; }
-    if (detail) exitRack(false);
+    if (detail) { exitRack(() => focus(kind, id)); return; }
     const o = objectFor(kind, id); if (!o) return;
     const box = new THREE.Box3().setFromObject(o); const c = box.getCenter(new THREE.Vector3());
     let off;
@@ -318,54 +341,174 @@ export function createScene(container, handlers) {
   new ResizeObserver(resize).observe(container);
   resize();
 
+  // ---------- Contexto de la sala que se atenúa en la vista de detalle ---------------------
+  // Un "ítem" por objeto de primer nivel de la escena (cada rack, CRAC, UPS, vidrio…).
+  // Los materiales compartidos entre ítems se clonan para atenuarlos por separado.
+  const FOG = { near: 14, far: 26 };
+  const items = [];
+  {
+    const owner = new Map();
+    scene.children.forEach((obj) => {
+      if (obj.isLight || obj === floor || obj === selBox) return;
+      obj.traverse((o) => {
+        if (!o.material || (o.userData && o.userData.noFade)) return;
+        const arr = [].concat(o.material).map((m) => {
+          if (owner.has(m) && owner.get(m) !== obj) return m.clone();
+          owner.set(m, obj); return m;
+        });
+        o.material = Array.isArray(o.material) ? arr : arr[0];
+      });
+      const box = new THREE.Box3().setFromObject(obj);
+      if (box.isEmpty()) return;
+      const rackId = Object.keys(racks).find((k) => racks[k].g === obj) || null;
+      items.push({ obj, rackId, box, center: box.getCenter(new THREE.Vector3()), floor: box.max.y < 0.06, recs: [...collectMaterials(obj)].map(fadeRecord), occ: 1 });
+    });
+  }
+  const CTX = 0.22, CTX_FLOOR = 0.6;
+  const tmpV = new THREE.Vector3(), tmpB = new THREE.Box3();
+  // ¿El ítem tapa el rack (está entre la cámara y el rack) o envuelve a la cámara?
+  function occludes(it, camLocal) {
+    if (it.floor) return false;
+    if (tmpB.copy(it.box).expandByScalar(0.45).containsPoint(camera.position)) return true;
+    const c = RV.root.worldToLocal(tmpV.copy(it.center));
+    const len = Math.hypot(camLocal.x, camLocal.z) || 1;
+    const vx = camLocal.x / len, vz = camLocal.z / len;
+    const along = c.x * vx + c.z * vz; // distancia hacia la cámara
+    const perp = Math.abs(c.x * vz - c.z * vx);
+    return along > 0.45 && along < len + 0.6 && perp < 1.5;
+  }
+  let p = 0; // 0 = sala, 1 = detalle
+  let lastNow = 0;
+  // Dos efectos independientes:
+  //  · contexto: la sala se atenúa según el progreso p (niebla + opacidad);
+  //  · ocultación: lo que queda entre la cámara y el rack (o la envuelve) se desvanece
+  //    rápido según la geometría, durante toda la transición y en la vista de detalle.
+  function applyContext(now, snap) {
+    const dt = Math.min(0.1, (now - lastNow) / 1000 || 0.016); lastNow = now;
+    if (!RV.root) return;
+    const camLocal = RV.root.worldToLocal(camera.position.clone());
+    const pe = smoothstep(0, 0.55, p);
+    const own = 1 - smoothstep(0.15, 0.75, p); // el rack simple se funde con el detallado
+    for (const it of items) {
+      let f, fs;
+      if (it.rackId === detail) { f = own; fs = own; }
+      else {
+        const target = occludes(it, camLocal) ? 0 : 1;
+        it.occ = snap ? target : it.occ + (target - it.occ) * Math.min(1, dt * 14);
+        const ctx = 1 + ((it.floor ? CTX_FLOOR : CTX) - 1) * pe;
+        f = Math.min(ctx, it.occ);
+        // las etiquetas se dibujan sin prueba de profundidad: se atenúan más para no tapar el rack
+        fs = Math.min(1 + (CTX * 0.3 - 1) * pe, it.occ);
+      }
+      it.recs.forEach((r) => setFade(r, r.m.isSpriteMaterial ? fs : f));
+    }
+    RV.setOpacity(smoothstep(0.2, 1, p));
+    scene.fog.near = FOG.near + (4.6 - FOG.near) * p;
+    scene.fog.far = FOG.far + (11 - FOG.far) * p;
+  }
+  function resetContext() {
+    for (const it of items) { it.occ = 1; it.recs.forEach((r) => setFade(r, 1)); }
+    scene.fog.near = FOG.near; scene.fog.far = FOG.far;
+  }
+
   // ---------- Vista de detalle del rack -------------------------------------------------
-  const RV = createRackView();
+  const RV = createRackView(scene);
   let detail = null, roomCam = null, side = 'front';
-  // el rack queda a la derecha del centro para no quedar bajo el inspector
-  const detailTarget = (sd) => new THREE.Vector3(sd === 'front' ? -0.32 : 0.32, 1.0, 0);
-  const sideCam = (sd) => new THREE.Vector3(sd === 'front' ? 0.05 : -0.05, 1.2, sd === 'front' ? 3.7 : -3.7);
-  function enterRack(id) {
-    if (detail === id) return;
-    const fromRoom = !detail;
-    if (fromRoom) roomCam = { pos: camera.position.clone(), target: controls.target.clone() };
-    const swap = () => {
-      RV.build(id, world); detail = id; side = 'front';
-      selBox.visible = false;
-      controls.minDistance = 0.3; controls.maxDistance = 6; controls.maxPolarAngle = Math.PI * 0.62;
-      controls.autoRotate = false;
-      camera.position.copy(sideCam('front')).multiplyScalar(1.5); controls.target.copy(detailTarget('front'));
-      flyTo(sideCam('front'), detailTarget('front'), 650);
-      if (handlers.onDetail) handlers.onDetail(id);
-    };
-    if (fromRoom) {
-      const R = racks[id];
-      const c = new THREE.Vector3(); R.g.getWorldPosition(c); c.y = 1.0;
-      const front = new THREE.Vector3(0, 0, 1).applyQuaternion(R.g.quaternion);
-      flyTo(c.clone().add(front.multiplyScalar(1.2)), c, 420, swap);
-    } else swap();
+  const ENTER_MS = 950, SIDE_MS = 900;
+  // en coordenadas del rack: el rack queda a la derecha del centro para no quedar bajo el inspector
+  const R_CAM = 3.7, CAM_Y = 1.2, TGT_Y = 1.0, TGT_X = 0.32;
+  const camAt = (theta, r = R_CAM, y = CAM_Y) => new THREE.Vector3(Math.sin(theta) * r, y, Math.cos(theta) * r);
+  const tgtAt = (theta) => new THREE.Vector3(-Math.cos(theta) * TGT_X, TGT_Y, Math.sin(theta) * TGT_X);
+  const toWorld = (v) => RV.root.localToWorld(v.clone());
+  const sideTheta = (sd) => (sd === 'front' ? 0 : Math.PI);
+
+  // trayectoria con un arco vertical suave: pasa por sobre los racks (2 m) en vez de atravesarlos
+  function arcLerp(a, b, e) {
+    camera.position.lerpVectors(a, b, e);
+    const lift = Math.max(0, 2.8 - (a.y + b.y) / 2); // el punto medio queda sobre los 2 m de los racks
+    camera.position.y += lift * Math.sin(Math.PI * e);
   }
-  function exitRack(restore = true) {
-    if (!detail) return;
-    const id = detail;
-    RV.clear(); detail = null; anim = null;
-    controls.minDistance = 2.2; controls.maxDistance = 16; controls.maxPolarAngle = Math.PI * 0.49;
-    controls.autoRotate = autoRotate;
+
+  function enterRack(id, done) {
+    if (busy) return false;
+    if (detail === id) { if (done) done(); return true; }
+    if (detail) { exitRack(() => enterRack(id, done)); return true; }
+    roomCam = { pos: camera.position.clone(), target: controls.target.clone() };
     const R = racks[id];
-    const c = new THREE.Vector3(); R.g.getWorldPosition(c); c.y = 1.0;
-    const front = new THREE.Vector3(0, 0, 1).applyQuaternion(R.g.quaternion);
-    camera.position.copy(c).add(front.multiplyScalar(2.3)); controls.target.copy(c);
-    if (restore && roomCam) flyTo(roomCam.pos, roomCam.target, 650);
+    RV.build(id, world, { position: R.g.position, quaternion: R.g.quaternion });
+    detail = id; side = 'front';
+    selBox.visible = false; selected = null;
+    controls.autoRotate = false;
+    setBusy(true);
+    if (handlers.onDetail) handlers.onDetail(id);
+    const endPos = toWorld(camAt(0)), endTgt = toWorld(tgtAt(0));
+    const finish = () => {
+      controls.minDistance = 0.3; controls.maxDistance = 6; controls.maxPolarAngle = Math.PI * 0.62;
+      setBusy(false); if (done) done();
+    };
+    if (reduceMotion.matches) {
+      fadeCut(() => { camera.position.copy(endPos); controls.target.copy(endTgt); controls.update(); p = 1; applyContext(performance.now(), true); }, finish);
+      return true;
+    }
+    for (const it of items) it.occ = 1;
+    const p0 = camera.position.clone(), t0 = controls.target.clone();
+    controls.minDistance = 0.01; controls.maxDistance = 100; controls.maxPolarAngle = Math.PI;
+    run(ENTER_MS, (e) => { arcLerp(p0, endPos, e); controls.target.lerpVectors(t0, endTgt, e); p = e; }, finish);
+    return true;
+  }
+
+  function exitRack(done) {
+    if (!detail || busy) return false;
+    setBusy(true);
     if (handlers.onDetail) handlers.onDetail(null);
+    RV.select(null);
+    controls.minDistance = 0.01; controls.maxDistance = 100; controls.maxPolarAngle = Math.PI;
+    const back = roomCam || { pos: VIEWS.iso[0].clone(), target: CENTER.clone() };
+    const finish = () => {
+      RV.clear(); detail = null; p = 0; resetContext();
+      controls.minDistance = 2.2; controls.maxDistance = 16; controls.maxPolarAngle = Math.PI * 0.49;
+      controls.autoRotate = autoRotate;
+      setBusy(false); if (done) done();
+    };
+    if (reduceMotion.matches) {
+      fadeCut(() => { camera.position.copy(back.pos); controls.target.copy(back.target); controls.update(); }, finish);
+      return true;
+    }
+    const p0 = camera.position.clone(), t0 = controls.target.clone();
+    run(ENTER_MS, (e) => { arcLerp(p0, back.pos, e); controls.target.lerpVectors(t0, back.target, e); p = 1 - e; }, finish);
+    return true;
   }
+
+  // Frente ↔ trasera: la cámara rodea el rack en un arco (coordenadas del rack).
   function rackSide(sd) {
-    if (!detail) return;
+    if (!detail || busy) return false;
     side = sd;
-    flyTo(sideCam(sd), detailTarget(sd), 750);
+    const c0 = RV.root.worldToLocal(camera.position.clone());
+    const th0 = Math.atan2(c0.x, c0.z), r0 = Math.max(1.2, Math.hypot(c0.x, c0.z)), y0 = c0.y;
+    let th1 = sideTheta(sd);
+    let d = th1 - th0; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
+    if (Math.abs(Math.abs(d) - Math.PI) < 0.05) d = Math.PI; // de frente a trasera: siempre por el mismo lado
+    const t0 = RV.root.worldToLocal(controls.target.clone());
+    setBusy(true);
+    const finish = () => setBusy(false);
+    if (reduceMotion.matches) {
+      fadeCut(() => { camera.position.copy(toWorld(camAt(th1))); controls.target.copy(toWorld(tgtAt(th1))); controls.update(); applyContext(performance.now(), true); }, finish);
+      return true;
+    }
+    controls.minDistance = 0.01;
+    run(SIDE_MS, (e) => {
+      const th = th0 + d * e;
+      camera.position.copy(toWorld(camAt(th, r0 + (R_CAM - r0) * e, y0 + (CAM_Y - y0) * e)));
+      controls.target.copy(toWorld(new THREE.Vector3().lerpVectors(t0, tgtAt(th), e)));
+    }, () => { controls.minDistance = 0.3; finish(); });
+    return true;
   }
+
   function focusDevice(name) {
-    const p = RV.deviceCenter(name); if (!p) return;
-    const z = side === 'front' ? 1 : -1;
-    flyTo(new THREE.Vector3(p.x - 0.1 * z, p.y + 0.12, z * 1.35), new THREE.Vector3(-0.22 * z, p.y, 0), 600);
+    if (!detail || busy) return;
+    const pl = RV.deviceCenter(name); if (!pl) return;
+    const th = sideTheta(side), z = Math.cos(th);
+    flyTo(toWorld(new THREE.Vector3(pl.x - 0.1 * z, pl.y + 0.12, z * 1.35)), toWorld(new THREE.Vector3(-0.22 * z, pl.y, 0)), 650);
   }
 
   let world = null, mode = 'estado', sevMap = {}, pulse = 0;
@@ -401,7 +544,7 @@ export function createScene(container, handlers) {
         else { R.sensor.position.set(RW / 2 - 0.06, 1.86, RD / 2 + 0.03); R.sensor.rotation.z = 0; }
       }
       if (R.gapGlow) R.gapGlow.material.opacity = rk.gap ? (mode === 'calor' ? 0.55 : 0.0) : 0;
-      if (R.gapGlow) R.gapGlow.visible = rk.gap;
+      if (R.gapGlow) R.gapGlow.visible = rk.gap && p < 0.01;
     }
     const c2 = world.flags.crac2Down;
     cracs['CRAC-2'].lamp.material.color.setHex(c2 ? 0xe5484d : 0x30c48d);
@@ -414,19 +557,20 @@ export function createScene(container, handlers) {
   function loop(now) {
     requestAnimationFrame(loop);
     if (anim) anim(now);
-    if (detail) { RV.animate(now); controls.update(); renderer.render(RV.scene, camera); return; }
     pulse = (Math.sin(now / 260) + 1) / 2;
     if (world) {
-      leakZone.material.opacity = world.leak.active ? 0.15 + 0.25 * pulse : 0.0;
+      leakZone.material.opacity = world.leak.active ? (0.15 + 0.25 * pulse) * (1 - 0.6 * p) : 0.0;
       if (world.flags.crac2Down) cracs['CRAC-2'].front.emissive.setRGB(0.35 * pulse, 0.03 * pulse, 0.03 * pulse);
       else cracs['CRAC-2'].front.emissive.setRGB(0, 0, 0);
       for (const def of RACKS) {
         const sev = sevMap[def.id];
         if (mode === 'estado' && (sev === 'disaster' || sev === 'high')) racks[def.id].bar.scale.y = 1 + pulse * 1.5;
         else racks[def.id].bar.scale.y = 1;
+        if (racks[def.id].gapGlow) racks[def.id].gapGlow.visible = world.racks[def.id].gap && p < 0.01;
       }
     }
-    if (selected) selBox.setFromObject(selected);
+    if (detail || p > 0) { applyContext(now, false); RV.animate(now); }
+    if (selected && !detail) selBox.setFromObject(selected);
     controls.update();
     renderer.render(scene, camera);
   }
@@ -437,7 +581,8 @@ export function createScene(container, handlers) {
     update(w, m, sev) { world = w; mode = m; sevMap = sev; sync(); },
     setView, focus, select, enterRack, exitRack, rackSide, focusDevice,
     get detail() { return detail; },
-    toggleRotate() { autoRotate = !autoRotate; controls.autoRotate = autoRotate; controls.autoRotateSpeed = 0.8; return autoRotate; },
-    zoom(f) { const d = camera.position.clone().sub(controls.target).multiplyScalar(f); const len = d.length(); if (len > controls.minDistance && len < controls.maxDistance) camera.position.copy(controls.target).add(d); },
+    get busy() { return busy; },
+    toggleRotate() { autoRotate = !autoRotate; if (!detail) controls.autoRotate = autoRotate; controls.autoRotateSpeed = 0.8; return autoRotate; },
+    zoom(f) { if (busy) return; const d = camera.position.clone().sub(controls.target).multiplyScalar(f); const len = d.length(); if (len > controls.minDistance && len < controls.maxDistance) camera.position.copy(controls.target).add(d); },
   };
 }

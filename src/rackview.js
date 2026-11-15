@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { RACKS } from './scenario.js';
 import { deviceState, psuBranches, branchPowered, pduLoad, deviceInfo } from './sim.js';
+import { fadeRecord, setFade, collectMaterials } from './fade.js';
 
 export const U = 0.0445;
 const RW = 0.6, RH = 2.0, RD = 1.1;
@@ -118,25 +119,31 @@ function pduTexture(b) {
 }
 
 // ---------- Construcción -----------------------------------------------------------
-export function createRackView() {
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x1c2129);
-  scene.fog = new THREE.Fog(0x1c2129, 6, 12);
-  scene.add(new THREE.HemisphereLight(0xdfe6ff, 0x30353f, 1.5));
-  const key = new THREE.DirectionalLight(0xffffff, 1.2); key.position.set(1.5, 3, 4); scene.add(key);
-  const back = new THREE.DirectionalLight(0xffffff, 1.5); back.position.set(-1.5, 3, -4); scene.add(back);
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), new THREE.MeshStandardMaterial({ color: 0x232833, roughness: 0.95 }));
-  floor.rotation.x = -Math.PI / 2; scene.add(floor);
-  const grid = new THREE.GridHelper(6, 10, 0x2f3542, 0x2a2f3a); grid.position.y = 0.001; scene.add(grid);
+// Se construye dentro de la escena de la sala, en la misma posición del rack,
+// y aparece con un fundido (setFade) mientras la cámara se acerca.
+export function createRackView(scene) {
 
   const shared = { railF: railTexture(false), railR: railTexture(true), blank: blankTexture(), door: perforatedDoorTexture(), pduA: pduTexture('A'), pduB: pduTexture('B') };
 
   let root = null, R = null; // R: estado de la construcción actual
   const pickables = [];
+  let fade = 0, recs = new Map(); // material -> registro de fundido
+
+  function track(obj) {
+    collectMaterials(obj).forEach((m) => { if (!recs.has(m)) { const r = fadeRecord(m); recs.set(m, r); r.f = 1; setFade(r, fade); } });
+  }
+  function untrack(obj) { collectMaterials(obj).forEach((m) => recs.delete(m)); }
+  function setOpacity(f) {
+    fade = f;
+    recs.forEach((r) => setFade(r, f));
+    if (R) { R.selBox.material.opacity = f; R.selBox.material.transparent = f < 1; }
+  }
 
   function clear() {
     if (!root) return;
     scene.remove(root);
+    if (R && R.selBox) { scene.remove(R.selBox); R.selBox.geometry.dispose(); R.selBox.material.dispose(); }
+    recs = new Map();
     root.traverse((o) => {
       if (o.geometry) o.geometry.dispose();
       if (o.material) [].concat(o.material).forEach((m) => { if (m.map && !Object.values(shared).includes(m.map)) m.map.dispose(); m.dispose(); });
@@ -144,10 +151,11 @@ export function createRackView() {
     root = null; R = null; pickables.length = 0;
   }
 
-  function build(rackId, world) {
+  function build(rackId, world, xf) {
     clear();
     const def = RACKS.find((r) => r.id === rackId);
     root = new THREE.Group(); scene.add(root);
+    root.position.copy(xf.position); root.quaternion.copy(xf.quaternion); root.updateMatrixWorld(true);
     const tagRack = { kind: 'rack', id: rackId };
     const frameMat = new THREE.MeshStandardMaterial({ color: 0x1a1f29, roughness: 0.55, metalness: 0.4, side: THREE.DoubleSide });
     // estructura: postes, techo, zócalo y laterales
@@ -278,7 +286,10 @@ export function createRackView() {
     }
 
     R = { rackId, def, devs, blanks, gapPanel, gapGlow, pdus, hinge, sensor, consoleCable, selBox: null };
-    const sel = new THREE.BoxHelper(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1)), 0x6b9bff); sel.visible = false; root.add(sel); R.selBox = sel;
+    // el recuadro de selección va en coordenadas de mundo, directo en la escena
+    const sel = new THREE.BoxHelper(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1)), 0x6b9bff); sel.visible = false; scene.add(sel); R.selBox = sel;
+    fade = 0;
+    track(root);
     sync(world);
   }
 
@@ -329,8 +340,8 @@ export function createRackView() {
       const br = psuBranches(world, R.rackId, d);
       const key = br.join('');
       if (key !== D.cordKey) {
-        if (D.cords) { D.cords.forEach((c) => { root.remove(c); c.geometry.dispose(); c.material.dispose(); }); }
-        D.cords = D.psus.map((p, i) => { const c = cordMesh(p, br[i]); c.userData = { kind: 'device', id: R.rackId + '/' + name }; root.add(c); return c; });
+        if (D.cords) { D.cords.forEach((c) => { untrack(c); root.remove(c); c.geometry.dispose(); c.material.dispose(); }); }
+        D.cords = D.psus.map((p, i) => { const c = cordMesh(p, br[i]); c.userData = { kind: 'device', id: R.rackId + '/' + name }; root.add(c); track(c); return c; });
         D.cordKey = key;
       }
       D.psus.forEach((p, i) => p.led.material.color.setHex(branchPowered(world, R.rackId, br[i]) ? LEDC.on : (world.t < world.flags.powerCutUntil ? LEDC.off : LEDC.noin)));
@@ -365,11 +376,11 @@ export function createRackView() {
     if (o) R.selBox.setFromObject(o);
   }
 
-  // posición de cámara para mirar un equipo
+  // centro del equipo en coordenadas locales del rack
   function deviceCenter(name) {
     if (!R || !R.devs[name]) return null;
     return R.devs[name].box.position.clone();
   }
 
-  return { scene, pickables, build, clear, sync, animate, select, deviceCenter, get rackId() { return R ? R.rackId : null; } };
+  return { pickables, build, clear, sync, animate, select, deviceCenter, setOpacity, get root() { return root; }, get rackId() { return R ? R.rackId : null; } };
 }

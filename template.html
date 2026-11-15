@@ -132,7 +132,16 @@ textarea{width:100%;background:#11141a;border:1px solid var(--line);color:var(--
   .endgrid{grid-template-columns:1fr 1fr}.intro .grid{grid-template-columns:1fr}
   .opts,.opts.four{grid-template-columns:1fr 1fr}
 }
-@media (prefers-reduced-motion:reduce){.toast{animation:none}#rackleg i.blink{animation:none}}
+/* paneles: entrada y salida con deslizamiento y fundido (nunca de golpe) */
+#inspector{--px:-14px;--py:0px}#rackbar{--px:0px;--py:-10px}#rackleg,.hintbar,#legend{--px:0px;--py:10px}
+.entering{animation:panelIn .22s cubic-bezier(.2,.7,.2,1) both}
+.leaving{animation:panelOut .2s ease-in both;pointer-events:none}
+@keyframes panelIn{from{opacity:0;translate:var(--px,0) var(--py,8px)}}
+@keyframes panelOut{to{opacity:0;translate:var(--px,0) var(--py,8px)}}
+#stage .busy canvas{cursor:progress!important}
+@media (prefers-reduced-motion:reduce){.toast{animation:none}#rackleg i.blink{animation:none}
+  .entering{animation:fadeIn .15s ease both}.leaving{animation:fadeOut .15s ease both}
+  @keyframes fadeIn{from{opacity:0}}@keyframes fadeOut{to{opacity:0}}}
 </style>
 </head>
 <body>

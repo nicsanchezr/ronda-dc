@@ -213,18 +213,40 @@ function openTicket(id) {
 }
 
 // ---------- Vista de detalle del rack ------------------------------------------------------
+// Paneles: entran deslizándose con fundido y salen igual (CSS .entering / .leaving).
+// key identifica el contenido: si cambia, el panel vuelve a entrar en vez de cambiar de golpe.
+function panelShow(el, key = '') {
+  clearTimeout(el._t);
+  const wasHidden = el.hidden || el.classList.contains('leaving');
+  el.classList.remove('leaving');
+  el.hidden = false;
+  if (wasHidden || el._key !== key) {
+    el._key = key;
+    el.classList.remove('entering'); void el.offsetWidth; el.classList.add('entering');
+  }
+}
+function panelHide(el) {
+  if (el.hidden || el.classList.contains('leaving')) return;
+  el._key = null;
+  el.classList.remove('entering'); el.classList.add('leaving');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.hidden = true; el.classList.remove('leaving'); }, 230);
+}
+
 function openRackView(id, deviceName) {
-  if (scene.detail !== id) scene.enterRack(id);
-  S.sel = deviceName ? { kind: 'device', id: id + '/' + deviceName } : { kind: 'rack', id };
-  scene.select(S.sel.kind, S.sel.id);
-  if (deviceName) setTimeout(() => { scene.select(S.sel.kind, S.sel.id); scene.focusDevice(deviceName); }, scene.detail === id ? 0 : 1150);
+  if (scene.busy) return;
+  const sel = deviceName ? { kind: 'device', id: id + '/' + deviceName } : { kind: 'rack', id };
+  const ok = scene.enterRack(id, () => {
+    scene.select(sel.kind, sel.id);
+    if (deviceName) scene.focusDevice(deviceName);
+  });
+  if (!ok) return;
+  S.sel = sel;
   renderInspector();
 }
 function renderRackUI(id) {
-  $('#rackbar').hidden = !id;
-  $('#rackleg').hidden = !id;
-  $('.hintbar').hidden = !!id;
-  $('#legend').hidden = !!id || S.mode !== 'calor';
+  if (id) { panelShow($('#rackbar'), id); panelShow($('#rackleg'), 'leg'); panelHide($('.hintbar')); panelHide($('#legend')); }
+  else { panelHide($('#rackbar')); panelHide($('#rackleg')); panelShow($('.hintbar'), 'hint'); if (S.mode === 'calor') panelShow($('#legend'), 'leg'); }
   if (id) {
     const def = RACKS.find((r) => r.id === id);
     $('#racktitle').textContent = t('rackView.title', { id });
@@ -240,10 +262,10 @@ function renderRackUI(id) {
 // ---------- Inspector -------------------------------------------------------------------
 function renderInspector() {
   const box = $('#inspector');
-  if (!S.sel) { box.hidden = true; return; }
+  if (!S.sel) { panelHide(box); return; }
   const d = inspect(S.world, S.sel.kind, S.sel.id);
-  if (!d) { box.hidden = true; return; }
-  box.hidden = false;
+  if (!d) { panelHide(box); return; }
+  panelShow(box, S.sel.kind + ':' + S.sel.id);
   const LED = { ok: '#30c48d', warn: '#f5c518', crit: '#e5484d', down: '#3a3f4a', off: '#3a3f4a' };
   const STL = t('inspector.state');
   const keep = box.querySelector('.ib') ? box.querySelector('.ib').scrollTop : 0;
@@ -472,6 +494,7 @@ document.addEventListener('click', async (e) => {
   else if (act === 'cancel-modal') closeModal();
   else if (act === 'close-modal') { closeModal(); if (S.ended) $('#end').hidden = false; }
   else if (act === 'close-insp') { S.sel = null; scene.select(null); renderInspector(); }
+  else if (scene.busy && (act === 'rack-detail' || act === 'pick-device' || act === 'insp-rack')) return;
   else if (act === 'tab') { S.tab = b.dataset.tab; renderPanel(); }
   else if (act === 'rack-detail') openRackView(b.dataset.rack);
   else if (act === 'pick-device') openRackView(b.dataset.rack, b.dataset.dev);
@@ -487,7 +510,7 @@ document.addEventListener('click', async (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && e.target.matches('.row.ticket')) openTicket(e.target.dataset.tk);
   if (e.key === 'Escape' && !$('#modal').hidden && $('#resolveform')) closeModal();
-  else if (e.key === 'Escape' && $('#modal').hidden && $('#end').hidden && $('#intro').hidden && scene.detail && !e.target.matches('input, textarea')) scene.exitRack();
+  else if (e.key === 'Escape' && $('#modal').hidden && $('#end').hidden && $('#intro').hidden && scene.detail && !scene.busy && !e.target.matches('input, textarea')) scene.exitRack();
 });
 document.addEventListener('submit', (e) => {
   if (e.target.id === 'noteform') {
@@ -498,7 +521,8 @@ document.addEventListener('submit', (e) => {
 document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => { S.tab = b.dataset.tab; renderPanel(); $('#pane').scrollTop = 0; }));
 document.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => {
   S.mode = b.dataset.mode; document.querySelectorAll('[data-mode]').forEach((x) => x.classList.toggle('on', x === b));
-  $('#legend').hidden = S.mode !== 'calor' || !!scene.detail; scene.update(S.world, S.mode, sevMap());
+  if (S.mode === 'calor' && !scene.detail) panelShow($('#legend'), 'leg'); else panelHide($('#legend'));
+  scene.update(S.world, S.mode, sevMap());
 }));
 document.querySelectorAll('[data-speed]').forEach((b) => b.addEventListener('click', () => {
   S.speed = Number(b.dataset.speed); S.running = true; updateSpeedUI();
@@ -507,9 +531,9 @@ $('#pause').addEventListener('click', () => { S.running = !S.running; updateSpee
 $('#skip').addEventListener('click', skipToNext);
 $('#endbtn').addEventListener('click', () => { if (S.ended) { $('#end').hidden = false; return; } const n = openTickets().length; if (n && !$('#endbtn').dataset.confirm) { $('#endbtn').dataset.confirm = '1'; $('#endbtn').textContent = t('header.endConfirm', { n }); setTimeout(() => { $('#endbtn').textContent = t('header.end'); delete $('#endbtn').dataset.confirm; }, 3000); return; } endShift(); });
 document.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => scene.setView(b.dataset.view)));
-$('#rackback').addEventListener('click', () => scene.exitRack());
+$('#rackback').addEventListener('click', () => { if (!scene.busy) scene.exitRack(); });
 document.querySelectorAll('[data-side]').forEach((b) => b.addEventListener('click', () => {
-  scene.rackSide(b.dataset.side);
+  if (b.classList.contains('on') || !scene.rackSide(b.dataset.side)) return;
   document.querySelectorAll('[data-side]').forEach((x) => x.classList.toggle('on', x === b));
 }));
 $('#zin').addEventListener('click', () => scene.zoom(0.8));
@@ -533,7 +557,7 @@ function updateSpeedUI() {
 }
 
 function boot() {
-  if (scene.detail) scene.exitRack(false);
+  if (scene.detail) scene.exitRack();
   S = freshState();
   S.lastMinute = -1;
   $('#clock').textContent = clock(0);
