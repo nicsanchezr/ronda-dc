@@ -21,7 +21,8 @@ Ronda DC es un simulador 3D público de un turno de operación en una sala de da
 - `src/sim.js`: estado del mundo, dinámica por minuto (`step`), efectos de cerrar un ticket (`applyClose`), inspección de objetos (`inspect`).
 - `src/scene3d.js`: escena Three.js 0.160 (racks, LEDs por equipo, CRAC, UPS, contención, agua, selección, vistas de cámara).
 - `src/main.js`: UI (panel con pestañas, inspector, modal de cierre, corrección, fin de turno, informe Markdown).
-- `template.html`: CSS y estructura. `build.mjs`: esbuild empaqueta todo en `dist/index.html` (un solo archivo, sin peticiones externas).
+- `src/i18n/`: textos de la interfaz (`es.js`, idioma inicial) y `t(clave, valores)` / `applyI18n()` en `index.js`. Los textos nuevos de la interfaz van al diccionario, no en duro en el código. Los textos de los escenarios (`scenario.js`, `sim.js`) aún no están centralizados.
+- `template.html`: CSS y estructura (los textos estáticos llevan `data-i18n`, `data-i18n-html`, `data-i18n-list` o `data-i18n-attr`). `build.mjs`: esbuild empaqueta todo en `dist/index.html` (un solo archivo, sin peticiones externas).
 
 ## Comandos
 - `npm install` y luego `node build.mjs` → `dist/index.html`

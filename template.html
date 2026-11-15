@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Turno de Sala · Simulador de operación de datacenter</title>
+<title>Ronda DC · Simulador de operación de sala de datacenter</title>
 <meta name="description" content="Simulador 3D de un turno de operación en una sala de datacenter: rondas, alertas, tickets, escalamiento y corrección inmediata.">
 <style>
 :root{--bg:#12151c;--bg2:#171b24;--panel:#1b202a;--line:#2a3140;--txt:#e6e9f0;--mut:#9aa4b8;--acc:#6b9bff;--good:#30c48d;--warn:#f5c518;--bad:#ff6b5e;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--sans:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
@@ -15,7 +15,7 @@ button{font:inherit;color:inherit}
 #app{display:grid;grid-template-rows:auto 1fr;height:100vh;height:100dvh}
 header{display:flex;align-items:center;gap:14px;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--bg2);flex-wrap:wrap}
 .brand{display:flex;align-items:center;gap:10px;min-width:0}
-.logo{background:var(--acc);color:#0b1020;font-weight:800;letter-spacing:.04em;padding:5px 9px;border-radius:7px;font-size:13px}
+.logo{display:flex;align-items:center;gap:7px;color:var(--txt);font-weight:800;letter-spacing:.02em;font-size:15px;white-space:nowrap}.logo svg{width:30px;height:30px;flex:none;color:var(--acc)}
 .brand h1{font-size:15px;margin:0;font-weight:650;white-space:nowrap}
 .brand p{margin:0;color:var(--mut);font-size:12px;white-space:nowrap}
 .spacer{flex:1}
@@ -130,40 +130,40 @@ textarea{width:100%;background:#11141a;border:1px solid var(--line);color:var(--
 <body>
 <div id="app">
 <header>
-  <div class="brand"><span class="logo">TURNO DE SALA</span><div><h1>Cordillera Colo · Sala A</h1><p>Simulador de operación de datacenter · Operador N1</p></div></div>
+  <div class="brand"><span class="logo" role="img" aria-label="Ronda DC"><svg viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M27.5 16a11.5 11.5 0 1 1-3.37-8.13"/><path d="M24.6 3.6l-.47 4.27-4.27-.47"/><rect x="11.5" y="9" width="9" height="14" rx="1.2"/><path d="M13.8 12.5h4.4M13.8 15.5h4.4M13.8 18.5h4.4"/></svg><span data-i18n="app.name">Ronda DC</span></span><div><h1 data-i18n="app.site">Cordillera Colo · Sala A</h1><p><span data-i18n="app.tagline">Simulador de operación de sala de datacenter</span> · <span data-i18n="app.role">Operador N1</span></p></div></div>
   <div class="spacer"></div>
-  <div class="seg" role="group" aria-label="Vista"><button data-mode="estado" class="on">Estado</button><button data-mode="calor">Calor</button></div>
-  <input id="search" type="search" placeholder="Buscar host o rack…" aria-label="Buscar host o rack">
-  <div id="clockwrap"><span id="clock" aria-live="off">08:00</span><div id="shiftbar" title="Avance del turno (08:00–15:00)"><i></i></div>
-    <div class="seg"><button id="pause" aria-label="Pausar">❚❚</button><button data-speed="1" class="on">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button><button id="skip" title="Adelantar al siguiente evento (sin tickets abiertos)" aria-label="Adelantar al siguiente evento">⏭</button></div></div>
-  <button id="endbtn">Terminar turno</button>
+  <div class="seg" role="group" aria-label="Vista" data-i18n-attr="aria-label:header.viewGroup"><button data-mode="estado" class="on" data-i18n="header.modeState">Estado</button><button data-mode="calor" data-i18n="header.modeHeat">Calor</button></div>
+  <input id="search" type="search" placeholder="Buscar host o rack…" aria-label="Buscar host o rack" data-i18n-attr="placeholder:header.search;aria-label:header.search">
+  <div id="clockwrap"><span id="clock" aria-live="off">08:00</span><div id="shiftbar" title="Avance del turno (08:00–15:00)" data-i18n-attr="title:header.shiftBar"><i></i></div>
+    <div class="seg"><button id="pause" aria-label="Pausar">❚❚</button><button data-speed="1" class="on">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button><button id="skip" title="Adelantar al siguiente evento (sin tickets abiertos)" aria-label="Adelantar al siguiente evento" data-i18n-attr="title:header.skip;aria-label:header.skipAria">⏭</button></div></div>
+  <button id="endbtn" data-i18n="header.end">Terminar turno</button>
 </header>
 <main>
-  <section id="stage" aria-label="Vista 3D de la sala">
+  <section id="stage" aria-label="Vista 3D de la sala" data-i18n-attr="aria-label:stage.aria">
     <div id="view3d"></div>
     <div class="vtop"></div>
     <div class="vtools">
-      <button id="zin" title="Acercar" aria-label="Acercar">+</button>
-      <button id="zout" title="Alejar" aria-label="Alejar">−</button>
-      <button id="rot" title="Rotación automática" aria-label="Rotación automática">⟳</button>
-      <button data-view="iso" title="Vista isométrica" aria-label="Vista isométrica">◇</button>
-      <button data-view="top" title="Vista cenital" aria-label="Vista cenital">▦</button>
-      <button data-view="aisle" title="Dentro del pasillo frío" aria-label="Vista del pasillo frío">⌂</button>
+      <button id="zin" title="Acercar" aria-label="Acercar" data-i18n-attr="title:stage.zoomIn;aria-label:stage.zoomIn">+</button>
+      <button id="zout" title="Alejar" aria-label="Alejar" data-i18n-attr="title:stage.zoomOut;aria-label:stage.zoomOut">−</button>
+      <button id="rot" title="Rotación automática" aria-label="Rotación automática" data-i18n-attr="title:stage.rotate;aria-label:stage.rotate">⟳</button>
+      <button data-view="iso" title="Vista isométrica" aria-label="Vista isométrica" data-i18n-attr="title:stage.viewIso;aria-label:stage.viewIso">◇</button>
+      <button data-view="top" title="Vista cenital" aria-label="Vista cenital" data-i18n-attr="title:stage.viewTop;aria-label:stage.viewTop">▦</button>
+      <button data-view="aisle" title="Dentro del pasillo frío" aria-label="Vista del pasillo frío" data-i18n-attr="title:stage.viewAisle;aria-label:stage.viewAisleAria">⌂</button>
     </div>
-    <div id="legend" hidden>Temperatura de entrada<div class="grad"></div><div class="lbl"><span>18 °C</span><span>27 °C</span><span>42 °C</span></div></div>
+    <div id="legend" hidden><span data-i18n="stage.legend">Temperatura de entrada</span><div class="grad"></div><div class="lbl"><span>18 °C</span><span>27 °C</span><span>42 °C</span></div></div>
     <div id="inspector" hidden></div>
     <div id="tip" hidden></div>
-    <div class="hintbar">Arrastra para girar · rueda para zoom · clic derecho para mover · clic en un equipo para inspeccionar</div>
+    <div class="hintbar" data-i18n="stage.hint">Arrastra para girar · rueda para zoom · clic derecho para mover · clic en un equipo para inspeccionar</div>
   </section>
   <aside>
     <div id="summary"></div>
     <nav class="tabs" role="tablist">
-      <button data-tab="monitoreo" class="on">Monitoreo</button>
-      <button data-tab="tickets">Tickets<span id="tkbadge" hidden></span></button>
-      <button data-tab="cambios">Cambios</button>
-      <button data-tab="accesos">Accesos</button>
-      <button data-tab="runbooks">Runbooks</button>
-      <button data-tab="bitacora">Bitácora</button>
+      <button data-tab="monitoreo" class="on" data-i18n="tabs.monitoring">Monitoreo</button>
+      <button data-tab="tickets"><span data-i18n="tabs.tickets">Tickets</span><span id="tkbadge" hidden></span></button>
+      <button data-tab="cambios" data-i18n="tabs.changes">Cambios</button>
+      <button data-tab="accesos" data-i18n="tabs.access">Accesos</button>
+      <button data-tab="runbooks" data-i18n="tabs.runbooks">Runbooks</button>
+      <button data-tab="bitacora" data-i18n="tabs.log">Bitácora</button>
     </nav>
     <div id="activebar"></div>
     <div id="pane"></div>
@@ -174,15 +174,15 @@ textarea{width:100%;background:#11141a;border:1px solid var(--line);color:var(--
 
 <div class="overlay" id="intro">
   <div class="card intro">
-    <div class="kicker">Simulador · Turno de Sala</div>
-    <h2>Tu primer turno como operador de sala de datacenter</h2>
-    <p class="lead">Hoy cubres el turno de 08:00 a 15:00 en <b>Cordillera Colo</b>, un colocation ficticio en Santiago. La Sala A tiene 10 racks de tres clientes, dos CRAC, dos UPS y control de acceso. Tu trabajo: recorrer la sala, atender las alertas y decidir qué se resuelve en el turno y qué se escala.</p>
+    <div class="kicker" data-i18n="intro.kicker">Ronda DC · Modo Turno</div>
+    <h2 data-i18n="intro.title">Tu primer turno como operador de sala de datacenter</h2>
+    <p class="lead" data-i18n-html="intro.lead">Hoy cubres el turno de 08:00 a 15:00 en <b>Cordillera Colo</b>, un colocation ficticio en Santiago. La Sala A tiene 10 racks de tres clientes, dos CRAC, dos UPS y control de acceso. Tu trabajo: recorrer la sala, atender las alertas y decidir qué se resuelve en el turno y qué se escala.</p>
     <div class="grid">
-      <div class="box"><b>Cómo se juega</b><ul><li>Las alertas de monitoreo crean tickets automáticamente.</li><li>Haz clic en racks, CRAC, UPS o el piso para inspeccionarlos.</li><li>Adjunta evidencia (📎) desde la sala, el monitoreo, los cambios y los accesos.</li><li>Cierra el ticket: clasificación, prioridad, acciones y escalamiento.</li></ul></div>
-      <div class="box"><b>Qué se evalúa</b><ul><li>Corrección inmediata al cerrar cada ticket, con lo esperado y el porqué.</li><li>No todo es un problema: hay trabajos autorizados y sensores que mienten.</li><li>El tiempo corre: si te demoras, la sala empeora.</li><li>Al final: puntaje, MTTA/MTTR, disponibilidad e informe de relevo.</li></ul></div>
+      <div class="box"><b data-i18n="intro.howTitle">Cómo se juega</b><ul data-i18n-list="intro.how"><li>Las alertas de monitoreo crean tickets automáticamente.</li><li>Haz clic en racks, CRAC, UPS o el piso para inspeccionarlos.</li><li>Adjunta evidencia (📎) desde la sala, el monitoreo, los cambios y los accesos.</li><li>Cierra el ticket: clasificación, prioridad, acciones y escalamiento.</li></ul></div>
+      <div class="box"><b data-i18n="intro.evalTitle">Qué se evalúa</b><ul data-i18n-list="intro.eval"><li>Corrección inmediata al cerrar cada ticket, con lo esperado y el porqué.</li><li>No todo es un problema: hay trabajos autorizados y sensores que mienten.</li><li>El tiempo corre: si te demoras, la sala empeora.</li><li>Al final: puntaje, MTTA/MTTR, disponibilidad e informe de relevo.</li></ul></div>
     </div>
-    <p class="muted small">1 minuto del turno = 5 segundos reales a 1×. Puedes pausar, acelerar y adelantar al siguiente evento cuando no tengas tickets abiertos. El reloj se detiene mientras cierras un ticket. Empresa, personas y equipos son ficticios. <span id="lastrun"></span></p>
-    <div class="mf"><button class="btn" id="startbtn">Comenzar el turno</button></div>
+    <p class="muted small"><span data-i18n="intro.fine">1 minuto del turno = 5 segundos reales a 1×. Puedes pausar, acelerar y adelantar al siguiente evento cuando no tengas tickets abiertos. El reloj se detiene mientras cierras un ticket. Empresa, personas y equipos son ficticios.</span> <span id="lastrun"></span></p>
+    <div class="mf"><button class="btn" id="startbtn" data-i18n="intro.start">Comenzar el turno</button></div>
   </div>
 </div>
 <div class="overlay" id="modal" hidden><div class="card" id="modalbox" role="dialog" aria-modal="true"></div></div>

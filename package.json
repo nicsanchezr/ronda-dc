@@ -1,16 +1,21 @@
 {
   "name": "ronda-dc",
   "version": "0.1.0",
-  "description": "Ronda DC \u00b7 simulador de operaci\u00f3n de sala de datacenter",
-  "main": "index.js",
+  "description": "Ronda DC · Simulador de operación de sala de datacenter",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "node build.mjs"
   },
   "keywords": [],
-  "author": "",
+  "author": "Nicolás Sánchez Rodríguez",
   "license": "ISC",
   "dependencies": {
     "esbuild": "^0.28.2",
     "three": "^0.160.0"
-  }
+  },
+  "homepage": "https://nicsanchezr.github.io/ronda-dc",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nicsanchezr/ronda-dc.git"
+  },
+  "private": true
 }
