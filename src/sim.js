@@ -81,8 +81,8 @@ export function step(w, dt) {
   w.timers = w.timers.filter((x) => x.at > t);
   due.forEach((x) => x.fn(w));
 
-  // E1: técnico de Dell y disco degradado
-  if (t0 < 98 && t >= 98) { w.flags.techInRoom = false; w.log.push({ t: 98, kind: 'sala', text: 'El técnico de Dell terminó el reemplazo del disco de stg-02 y salió de la sala.' }); }
+  // E1: técnico del proveedor y disco degradado
+  if (t0 < 98 && t >= 98) { w.flags.techInRoom = false; w.log.push({ t: 98, kind: 'sala', text: 'El técnico de Austral Storage Services terminó el reemplazo del disco de stg-02 y salió de la sala.' }); }
 
   // E2 sensor suelto: sin dinámica
 
@@ -291,7 +291,7 @@ export function inspect(w, kind, id) {
       if (w.flags.n7psu === 'BB') obs.push({ id: 'obs:r06-psu', warn: true, text: 'k8s-n7 (U23–U24): PSU1 → PDU-B y PSU2 → PDU-B.' });
       obs.push({ id: 'obs:r06-label', text: 'Etiqueta en k8s-n7: «Instalado hoy 07:30 · CHG-1045».' });
     }
-    if (id === 'R07' && w.flags.techInRoom) obs.push({ id: 'obs:r07-tech', text: 'Técnico de Dell (credencial P-0412) reemplazando el disco 3 de stg-02. El equipo sigue encendido.' });
+    if (id === 'R07' && w.flags.techInRoom) obs.push({ id: 'obs:r07-tech', text: 'Técnico de Austral Storage Services (credencial P-0412) reemplazando el disco 3 de stg-02. El equipo sigue encendido.' });
     if (id === 'R02' && rk.rearOpen) obs.push({ id: 'obs:r02-door', warn: true, text: 'Puerta trasera abierta; la cerradura no muestra daños.' });
     if (id === 'R02' && w.flags.cable) obs.push({ id: 'obs:r02-cable', warn: true, text: 'Cable de consola azul conectado al puerto de consola de fw-01; no figura en el inventario del rack.' });
     if (obs.length === 1) obs.push({ id: 'obs:' + id.toLowerCase() + '-ok', text: 'Sin novedades visibles en la ronda.' });
@@ -377,7 +377,7 @@ export function inspect(w, kind, id) {
     const obs = [];
     if (d.name === 'k8s-n7' && w.flags.n7psu === 'BB') obs.push({ id: 'obs:r06-psu', warn: true, text: 'k8s-n7 (U23–U24): PSU1 → PDU-B y PSU2 → PDU-B.' });
     if (d.name === 'fw-01' && w.flags.cable) obs.push({ id: 'obs:r02-cable', warn: true, text: 'Cable de consola azul conectado al puerto de consola de fw-01; no figura en el inventario del rack.' });
-    if (d.name === 'stg-02' && w.flags.techInRoom) obs.push({ id: 'obs:r07-tech', text: 'Técnico de Dell (credencial P-0412) reemplazando el disco 3 de stg-02. El equipo sigue encendido.' });
+    if (d.name === 'stg-02' && w.flags.techInRoom) obs.push({ id: 'obs:r07-tech', text: 'Técnico de Austral Storage Services (credencial P-0412) reemplazando el disco 3 de stg-02. El equipo sigue encendido.' });
     return { title: name, sub: tr('device.sub', { rack: rackId, range }), readings, obs, rack: rackId };
   }
   if (kind === 'pdu') {

@@ -73,7 +73,7 @@ export const PRIORITIES = [
 
 // Calendario de cambios y mantenimientos del día
 export const CALENDAR = [
-  { id: 'CHG-1042', at: '08:00–10:00', title: 'Reemplazo de disco 3 en stg-02 (R07)', who: 'Dell Technologies · técnico en sitio', client: 'logistica', state: 'Aprobado', detail: 'Cambio de disco en caliente (RAID 6). No requiere apagar el equipo. Ingreso de un técnico, acompañado.' },
+  { id: 'CHG-1042', at: '08:00–10:00', title: 'Reemplazo de disco 3 en stg-02 (R07)', who: 'Austral Storage Services · técnico en sitio', client: 'logistica', state: 'Aprobado', detail: 'Cambio de disco en caliente (RAID 6). No requiere apagar el equipo. Ingreso de un técnico, acompañado.' },
   { id: 'CHG-1045', at: '07:00–08:00', title: 'Instalación de nodo k8s-n7 en R06 (U23–U24)', who: 'Fintech Pehuén · personal del cliente', client: 'fintech', state: 'Ejecutado', detail: 'Montaje de un servidor 2U. Alimentación: PSU1 a PDU-A y PSU2 a PDU-B según plano de rack.' },
   { id: 'MNT-221', at: '11:00–11:15', title: 'Autoprueba mensual de baterías UPS-A', who: 'Proveedor UPS (contrato de mantenimiento)', client: null, state: 'Programado', detail: 'Prueba automática de descarga corta. UPS-A opera en batería durante la prueba; la carga se mantiene protegida.' },
   { id: 'CHG-1047', at: 'Mañana 09:00', title: 'Actualización de firmware en sw-dist-01 (R10)', who: 'Logística Austral · NOC', client: 'logistica', state: 'Aprobado', detail: 'Ventana de mañana. No hay trabajo físico en sala.' },
@@ -84,8 +84,8 @@ export const CALENDAR = [
 export const ACCESS = [
   { id: 'acc-0728', t: -32, who: 'Javiera Soto (Fintech Pehuén)', card: 'C-2231', door: 'Sala A', note: 'Cliente · CHG-1045' },
   { id: 'acc-0759', t: -1, who: 'Operador de turno (tú)', card: 'E-0107', door: 'Sala A', note: 'Personal interno' },
-  { id: 'acc-0805', t: 5, who: 'Matías Rivas (Dell Technologies)', card: 'P-0412', door: 'Sala A', note: 'Proveedor · CHG-1042' },
-  { id: 'acc-0938', t: 98, who: 'Matías Rivas (Dell Technologies)', card: 'P-0412', door: 'Salida', note: 'Proveedor · fin de CHG-1042' },
+  { id: 'acc-0805', t: 5, who: 'Matías Rivas (Austral Storage Services)', card: 'P-0412', door: 'Sala A', note: 'Proveedor · CHG-1042' },
+  { id: 'acc-0938', t: 98, who: 'Matías Rivas (Austral Storage Services)', card: 'P-0412', door: 'Salida', note: 'Proveedor · fin de CHG-1042' },
   { id: 'acc-1102', t: 182, who: 'Paula Fuentes (Facilities)', card: 'E-0033', door: 'Sala A', note: 'Personal interno · ronda' },
   { id: 'acc-1404', t: 364, who: 'Tarjeta de visita V-12', card: 'V-12', door: 'Sala A', note: 'Sin visita registrada para esta tarjeta' },
   { id: 'acc-1411', t: 371, who: 'Tarjeta de visita V-12', card: 'V-12', door: 'Salida', note: 'Sin visita registrada para esta tarjeta' },
@@ -96,7 +96,7 @@ export const NOISE = [
   { t: 0, host: 'srv-ntp01', text: 'Sincronización NTP correcta' },
   { t: 22, host: 'bkp-01', text: 'Respaldo nocturno completado (4,2 TB)' },
   { t: 61, host: 'sw-dist-02', text: 'Interfaz Gi1/0/24 arriba (cambio de enlace del cliente)' },
-  { t: 128, host: 'srv-mon01', text: 'Agente Zabbix reiniciado por actualización' },
+  { t: 128, host: 'srv-mon01', text: 'Agente de monitoreo reiniciado por actualización' },
   { t: 205, host: 'GEN-01', text: 'Generador: prueba semanal sin carga OK' },
   { t: 290, host: 'srv-web02', text: 'Certificado TLS renovado' },
   { t: 345, host: 'ENV-SALA', text: 'Humedad relativa de la sala: 46 %' },
