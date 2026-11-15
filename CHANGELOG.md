@@ -2,6 +2,16 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). Versiones según [SemVer](https://semver.org/lang/es/).
 
+## [0.2.1] · 2026-11-15
+
+### Corregido
+- Pestañas del panel lateral: las seis (Monitoreo, Tickets, Cambios, Accesos, Runbooks, Bitácora) caben en una línea a 1280, 1366, 1440 y 1920 px, en ambos temas; si no cupieran, pasan a dos líneas en vez de mostrar una barra de desplazamiento.
+- Barras de desplazamiento delgadas con los colores del tema (claro y oscuro) en el inspector, la ficha de equipo, el panel de tickets y los modales, en lugar de la barra gruesa gris de Windows.
+
+### Cambiado
+- En pantallas de 1700 px o más, el panel lateral es un poco más ancho (480 px).
+- Capturas del README e imagen Open Graph actualizadas.
+
 ## [0.2.0] · 2026-11-15
 
 ### Agregado
@@ -34,5 +44,6 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). V
 - Dinámica de la sala: temperatura por falla de climatización, carga de PDU con disparo, fuga que crece; impactos por acciones críticas.
 - Fin de turno con puntaje, MTTA, MTTR, disponibilidad e informe de relevo en Markdown.
 
-[0.2.0]: https://github.com/nicsanchezr/ronda-dc/compare/11343d3...main
+[0.2.1]: https://github.com/nicsanchezr/ronda-dc/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/nicsanchezr/ronda-dc/compare/11343d3...v0.2.0
 [0.1.0]: https://github.com/nicsanchezr/ronda-dc/commit/11343d3

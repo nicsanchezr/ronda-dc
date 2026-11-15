@@ -1,6 +1,6 @@
 {
   "name": "ronda-dc",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Ronda DC · Simulador de operación de sala de datacenter",
   "scripts": {
     "build": "node build.mjs",
