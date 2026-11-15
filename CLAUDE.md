@@ -1,0 +1,34 @@
+# Ronda DC · contexto para Claude Code
+
+## Nombre y marca (decidido el 15-11-2026)
+- Nombre: **Ronda DC** (antes "Turno de Sala"; ese nombre debe desaparecer de la interfaz, el título y el informe).
+- Subtítulo ES: *Simulador de operación de sala de datacenter* · EN: *Data center floor operations simulator*.
+- Modos dentro del producto: **Turno** / *Shift* · **Checklist de ronda** / *Rounds checklist* · **Demo**.
+- Repositorio: `nicsanchezr/ronda-dc` · GitHub Pages: `nicsanchezr.github.io/ronda-dc`.
+- La interfaz debe quedar preparada para ES/EN (textos centralizados para poder traducirlos), con el español como idioma inicial.
+
+
+Ronda DC es un simulador 3D público de un turno de operación en una sala de datacenter (operador N1), inspirado en el enfoque de Blue-Jr (https://heindall92.github.io/Blue-Jr/): turno con alertas, tickets, decisiones corregidas al momento e informe final. Autor: Nicolás Sánchez Rodríguez (docente DUOC UC / INACAP). Idioma de la interfaz: español de Chile.
+
+## Estado actual (MVP v0.1)
+- Un turno de 08:00 a 15:00 en "Cordillera Colo · Sala A" (empresa ficticia), 10 racks (R01–R10) de tres clientes, CRAC-1/2, UPS-A/B, sensor de fugas, control de acceso.
+- 8 eventos: 3 que no requieren escalar (proveedor con cambio aprobado, sensor suelto que es un falso positivo, autoprueba de la UPS) y 5 reales (paneles ciegos, PSU B+B en PDU-B, falla de CRAC-2, fuga de condensado, puerta de R02 con un cable de consola).
+- Corrección por ticket: clasificación 25, prioridad 15, escalamiento 20, acciones 30, evidencia 10, menos penalizaciones por SLA. Las acciones críticas dejan las acciones en 0 y producen impactos en la sala.
+- Dinámica: la temperatura sube si falla un CRAC (apagado térmico a 32 °C), la PDU dispara al 96 %, la fuga crece. El reloj se pausa al cerrar un ticket. 1 min de juego = 5 s reales a 1×.
+
+## Estructura
+- `src/scenario.js`: datos de la sala, catálogos (severidades estilo Zabbix, escalamientos, prioridades/SLA), calendario de cambios, accesos, runbooks y los 8 eventos (respuesta esperada, explicación, referencia).
+- `src/sim.js`: estado del mundo, dinámica por minuto (`step`), efectos de cerrar un ticket (`applyClose`), inspección de objetos (`inspect`).
+- `src/scene3d.js`: escena Three.js 0.160 (racks, LEDs por equipo, CRAC, UPS, contención, agua, selección, vistas de cámara).
+- `src/main.js`: UI (panel con pestañas, inspector, modal de cierre, corrección, fin de turno, informe Markdown).
+- `template.html`: CSS y estructura. `build.mjs`: esbuild empaqueta todo en `dist/index.html` (un solo archivo, sin peticiones externas).
+
+## Comandos
+- `npm install` y luego `node build.mjs` → `dist/index.html`
+- Las pruebas se hicieron con Playwright + Chrome (`--use-gl=swiftshader`) recorriendo los 8 tickets.
+
+## Convenciones
+- Todo debe ser ficticio (empresa, personas, clientes). No usar marcas reales en el diseño propio.
+- El diseño actual se parece demasiado a un mockup de LinkedIn ("LAKA Soluciones Tecnológicas", widget 3D para Zabbix): hay que diferenciarlo (ver ROADMAP).
+- Funcionar como un solo HTML local-first (progreso en localStorage con try/catch).
+- Los textos para el estudiante deben ser claros y explicar el porqué con una referencia normativa (ASHRAE TC 9.9, TIA-942, Uptime Tiers, ISO/IEC 27001, ISO/IEC 20000, ITIL).

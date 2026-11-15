@@ -1,0 +1,16 @@
+{
+  "name": "ronda-dc",
+  "version": "0.1.0",
+  "description": "Ronda DC \u00b7 simulador de operaci\u00f3n de sala de datacenter",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "esbuild": "^0.28.2",
+    "three": "^0.160.0"
+  }
+}
