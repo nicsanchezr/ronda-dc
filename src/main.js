@@ -5,6 +5,7 @@ import { createScene } from './scene3d.js';
 import { t, applyI18n } from './i18n/index.js';
 import { initThemes, themes, getState, setTheme, setMode, onThemeChange } from './themes/index.js';
 import { statusIcon } from './status.js';
+import { gl, GLOSSARY, initGlossaryTip } from './glossary.js';
 
 initThemes(); // variables CSS del tema antes de crear la escena
 
@@ -21,7 +22,7 @@ function freshState(level = 'normal') {
     world: createWorld(schedFor(level)), running: false, speed: 1, mode: 'estado', tab: 'monitoreo',
     tickets: [], active: null, started: new Set(), sel: null, ended: false, modal: false,
     notes: [], lastMinute: -1, seenSys: 0, begun: false,
-    level, seen: {}, seenFirst: {}, act: null, confirm: null,
+    level, seen: {}, seenFirst: {}, act: null, confirm: null, consulta: 'runbooks', glFocus: null,
   };
 }
 
@@ -176,7 +177,7 @@ function renderPanel() {
     h = list.length ? list.map((a) => `
       <div class="row alert">
         <div class="when">${clock(a.t)}</div>
-        <div class="body"><div class="host">${statusIcon(a.sev, { label: SEV[a.sev].label })}${esc(a.host)} <span class="sev">${SEV[a.sev].label}</span></div><div>${esc(a.text)}</div>
+        <div class="body"><div class="host">${statusIcon(a.sev, { label: SEV[a.sev].label })}${esc(a.host)} <span class="sev">${SEV[a.sev].label}</span></div><div>${gl(a.text)}</div>
         ${a.inc ? `<button class="link" data-act="open-inc" data-inc="${a.inc}">${t('panel.viewTicket')}</button>` : ''}</div>
         ${attachBtn(a.id, clock(a.t) + ' · ' + a.host + ' · ' + a.text)}
       </div>`).join('') : `<p class="empty">${t('panel.noAlerts')}</p>`;
@@ -204,8 +205,11 @@ function renderPanel() {
       <div class="row acc"><div class="when">${clock(a.t)}</div><div class="body">
         <div class="host">${esc(a.who)}</div><div class="muted">${t('panel.accessRow', { card: esc(a.card), door: esc(a.door), note: esc(a.note) })}</div></div>
         ${attachBtn('acc:' + a.id, clock(a.t) + ' · ' + a.who + ' · ' + a.card + ' · ' + a.note)}</div>`).join('');
-  } else if (tab === 'runbooks') {
-    h = RUNBOOKS.map((r) => `<details class="rb"><summary><b>${r.id}</b> ${esc(r.title)}</summary><ol>${r.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol></details>`).join('');
+  } else if (tab === 'consulta') {
+    const seg = `<div class="seg consg" role="group" aria-label="${t('tabs.consulta')}"><button data-cons="runbooks" class="${S.consulta === 'runbooks' ? 'on' : ''}">${t('consulta.runbooks')}</button><button data-cons="glosario" class="${S.consulta === 'glosario' ? 'on' : ''}">${t('consulta.glossary')}</button></div>`;
+    h = seg + (S.consulta === 'glosario'
+      ? `<input id="glsearch" type="search" placeholder="${t('consulta.search')}" aria-label="${t('consulta.search')}" autocomplete="off"><div class="gll">${GLOSSARY.slice().sort((a, b) => a.term.localeCompare(b.term, 'es')).map((g) => `<article class="gle${S.glFocus === g.id ? ' focus' : ''}" id="gl-${g.id}" data-terms="${esc([g.term, ...(g.aliases || [])].join(' ').toLowerCase())}"><b>${esc(g.term)}</b><p>${esc(g.def)}</p><p class="ex"><span>${t('glossary.example')}</span> ${esc(g.example)}</p><p class="ref">${esc(g.ref)}</p></article>`).join('')}</div>`
+      : RUNBOOKS.map((r) => `<details class="rb"><summary><b>${r.id}</b> ${esc(r.title)}</summary><ol>${r.steps.map((s) => `<li>${gl(s)}</li>`).join('')}</ol></details>`).join(''));
   } else if (tab === 'bitacora') {
     const entries = [...w.log, ...S.notes].sort((a, b) => b.t - a.t);
     h = `<form id="noteform" class="noteform"><input id="noteinput" placeholder="${t('panel.notePlaceholder')}" autocomplete="off"><button>${t('panel.noteAdd')}</button></form>` +
@@ -220,6 +224,7 @@ function renderPanel() {
   pane.innerHTML = h;
   pane.scrollTop = keep;
   if (focusNote) { const ni = $('#noteinput'); ni.value = noteVal; ni.focus(); }
+  if (tab === 'consulta' && S.consulta === 'glosario' && S.glFocus) { const el = $('#gl-' + S.glFocus); if (el) el.scrollIntoView({ block: 'center' }); S.glFocus = null; }
 }
 
 function ticketDetail(tk) {
@@ -227,7 +232,7 @@ function ticketDetail(tk) {
   return `<div class="detail">
     <div class="dh"><span>${statusIcon(tk.inc.alert.sev, { label: SEV[tk.inc.alert.sev].label })}<b>${tk.id}</b> · ${esc(tk.inc.title)}</span><button class="x" data-act="close-detail" aria-label="${t('ticket.closeDetail')}">×</button></div>
     <div class="muted">${clock(tk.openedAt)} · ${esc(tk.inc.alert.host)} · ${SEV[tk.inc.alert.sev].label}</div>
-    <p>${tk.proactive ? esc(t('proactive.detail')) : esc(tk.inc.alert.text)}</p>
+    <p>${tk.proactive ? esc(t('proactive.detail')) : gl(tk.inc.alert.text)}</p>
     <div class="evh">${t('ticket.evidence', { n: tk.evidence.length })}</div>
     ${tk.evidence.length ? `<ul class="evl">${tk.evidence.map((e) => `<li>${esc(e.label)}${closed ? '' : ` <button class="link" data-act="detach" data-ev="${esc(e.id)}">${t('ticket.remove')}</button>`}</li>`).join('')}</ul>` : `<p class="muted small">${t('ticket.noEvidence')}</p>`}
     ${hintsHtml(tk)}
@@ -239,7 +244,7 @@ function hintsHtml(tk) {
   const R = LEVEL_RULES[S.level];
   if (!R.hints || !tk.inc.hints) return '';
   const n = tk.hints || 0, max = Math.min(R.hints, tk.inc.hints.length);
-  const shown = tk.inc.hints.slice(0, n).map((h, i) => `<li><b>${t('hints.n', { n: i + 1 })}</b> ${esc(h)}</li>`).join('');
+  const shown = tk.inc.hints.slice(0, n).map((h, i) => `<li><b>${t('hints.n', { n: i + 1 })}</b> ${gl(h)}</li>`).join('');
   const btn = n < max && tk.closedAt == null ? `<button class="link" data-act="hint" data-tk="${tk.id}">${t(R.hint ? 'hints.askCost' : 'hints.ask', { n, max, cost: R.hint })}</button>` : '';
   return `<div class="hints">${shown ? `<ul>${shown}</ul>` : ''}${btn}</div>`;
 }
@@ -371,7 +376,7 @@ function renderInspector() {
   const html = `<div class="ih"><div><b>${esc(d.title)}</b><div class="muted small">${esc(d.sub)}</div></div><button class="x" data-act="close-insp" aria-label="${t('inspector.close')}">×</button></div>
   <div class="ib">
     <table class="rd">${d.readings.map(([k, v, c]) => `<tr><td>${esc(k)}</td><td class="${c || ''}">${esc(v)}</td></tr>`).join('')}</table>
-    ${d.obs.length ? `<div class="evh">${t('inspector.roundObs')}</div>${d.obs.map((o) => `<div class="obs ${o.warn ? 'w' : ''}"><span>${esc(o.text)}</span>${attachBtn(o.id, d.title + ': ' + o.text)}</div>`).join('')}` : ''}
+    ${d.obs.length ? `<div class="evh">${t('inspector.roundObs')}</div>${d.obs.map((o) => `<div class="obs ${o.warn ? 'w' : ''}"><span>${gl(o.text)}</span>${attachBtn(o.id, d.title + ': ' + o.text)}</div>`).join('')}` : ''}
     ${fieldActionsHtml()}
     ${d.devices ? `<div class="evh">${t('inspector.devicesFront')}</div><table class="dv"><tr><th>${t('inspector.colU')}</th><th>${t('inspector.colDevice')}</th><th>${t('inspector.colPsu')}</th><th>${t('inspector.colState')}</th></tr>${d.devices.map((x) => `<tr class="pick" data-act="pick-device" data-rack="${esc(S.sel.id)}" data-dev="${esc(x.name)}" title="${esc(t('inspector.pickDevice', { name: x.name }))}"><td class="mono">${x.u}${x.h > 1 ? '–' + (x.u + x.h - 1) : ''}</td><td>${esc(x.name)}</td><td class="mono ${x.psu === 'B + B' ? 'warn' : ''}">${x.psu}</td><td><i class="dot" style="background:${LED[x.state]}"></i>${STL[x.state]}</td></tr>`).join('')}</table>` : ''}
     ${d.link ? `<button class="btn ghost" data-act="tab" data-tab="${d.link}">${t('inspector.viewAccess')}</button>` : ''}
@@ -491,7 +496,7 @@ function showReview(tk) {
     ${r.parts.map((p) => `<tr><td>${p.dim}</td><td>${p.items ? actionItemsHtml(p) : esc(p.yours || '—')}${p.crit && p.crit.length ? `<div class="bad small">${t('review.critLabel')} ${esc(p.crit.join(' · '))}</div>` : ''}${p.wrong && p.wrong.length ? `<div class="warn small">${t('review.wrongLabel')} ${esc(p.wrong.join(' · '))}</div>` : ''}${p.missing && p.missing.length ? `<div class="muted small">${t('review.missingLabel')} ${esc(p.missing.join(' · '))}</div>` : ''}${p.notes && p.notes.length ? p.notes.map((n) => `<div class="escnote small">${esc(n)}</div>`).join('') : ''}</td><td>${esc(p.exp)}</td><td class="mono">${p.pts}/${p.max}</td></tr>`).join('')}
     ${r.pen ? `<tr><td>${t('review.dimTime')}</td><td colspan="2">${esc(r.notes.join(' '))}</td><td class="mono">−${r.pen}</td></tr>` : ''}
     </table>
-    <div class="why"><b>${t('review.why')}</b><p>${esc(inc.why)}</p><p class="muted small">${esc(t('review.ref', { ref: inc.ref }))}</p></div>
+    <div class="why"><b>${t('review.why')}</b><p>${gl(inc.why)}</p><p class="muted small">${esc(t('review.ref', { ref: inc.ref }))}</p></div>
     <div class="mf"><button class="btn" data-act="close-modal">${t('review.cont')}</button></div>`;
 }
 
@@ -586,7 +591,7 @@ function report() {
 
 // ---------- Eventos globales ------------------------------------------------------------------
 document.addEventListener('click', async (e) => {
-  const b = e.target.closest('[data-act]'); if (!b) return;
+  const b = e.target.closest('[data-act],[data-cons]'); if (!b) return;
   const act = b.dataset.act;
   if (act === 'attach') {
     const tk = S.tickets.find((x) => x.id === S.active);
@@ -607,6 +612,7 @@ document.addEventListener('click', async (e) => {
   else if (act === 'close-insp') { S.sel = null; scene.select(null); renderInspector(); }
   else if (scene.busy && (act === 'rack-detail' || act === 'pick-device' || act === 'insp-rack')) return;
   else if (act === 'tab') { S.tab = b.dataset.tab; renderPanel(); }
+  else if (b.dataset.cons) { S.consulta = b.dataset.cons; renderPanel(); }
   else if (act === 'hint') { const tk = S.tickets.find((x) => x.id === b.dataset.tk); const R = LEVEL_RULES[S.level]; if (tk && (tk.hints || 0) < Math.min(R.hints, tk.inc.hints.length)) { tk.hints = (tk.hints || 0) + 1; S.world.log.push({ t: S.world.t, kind: 'sala', text: t('hints.log', { id: tk.id, n: tk.hints }) }); renderPanel(); } }
   else if (act === 'fa') { if (!S.act) { S.confirm = b.dataset.fa; renderInspector(); } }
   else if (act === 'fa-cancel') { S.confirm = null; renderInspector(); }
@@ -626,7 +632,7 @@ document.addEventListener('click', async (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && e.target.matches('.row.ticket')) openTicket(e.target.dataset.tk);
   if (e.key === 'Escape' && !$('#modal').hidden && $('#resolveform')) closeModal();
-  else if (e.key === 'Escape' && $('#modal').hidden && $('#end').hidden && $('#briefing').hidden && $('#landing').hidden && scene.detail && !scene.busy && $('#setpop').hidden && !e.target.matches('input, textarea')) scene.exitRack();
+  else if (e.key === 'Escape' && $('#modal').hidden && $('#end').hidden && $('#briefing').hidden && $('#landing').hidden && scene.detail && !scene.busy && $('#setpop').hidden && (!$('#gltip') || $('#gltip').hidden) && !e.target.matches('input, textarea')) scene.exitRack();
 });
 document.addEventListener('submit', (e) => {
   if (e.target.id === 'noteform') {
@@ -806,6 +812,14 @@ if (/[?&]test\b/.test(location.search)) {
     },
   };
 }
+
+// ---------- Glosario: tooltip y búsqueda en la pestaña Consulta -------------------------------
+initGlossaryTip((id) => { S.tab = 'consulta'; S.consulta = 'glosario'; S.glFocus = id; renderPanel(); });
+document.addEventListener('input', (e) => {
+  if (e.target.id !== 'glsearch') return;
+  const q = e.target.value.trim().toLowerCase();
+  document.querySelectorAll('.gle').forEach((el) => { el.hidden = !!q && !el.dataset.terms.includes(q) && !el.textContent.toLowerCase().includes(q); });
+});
 
 applyI18n();
 $('#startbtn').addEventListener('click', start);

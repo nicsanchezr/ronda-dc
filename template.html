@@ -247,6 +247,13 @@ header{--px:0px;--py:-12px;position:relative;z-index:35}aside{--px:24px;--py:0px
 #clockwrap.held #clock{color:var(--mut)}
 .hints{margin:6px 0 10px;font-size:13px}.hints ul{margin:0 0 6px;padding-left:18px;display:grid;gap:4px}
 body[data-level=experto] .obs.w{box-shadow:none}
+.gl{border-bottom:1px dotted var(--acc-text);cursor:help;border-radius:2px}.gl:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+#gltip{position:fixed;z-index:60;background:var(--glass);color:var(--txt);border:1px solid var(--line);border-radius:9px;box-shadow:0 12px 32px var(--shadow);padding:10px 12px;font-size:13px;line-height:1.4}
+#gltip b{font:600 15px var(--head)}#gltip p{margin:5px 0}#gltip .ex span,.gle .ex span{font-weight:600}#gltip .ref,.gle .ref{color:var(--mut);font-size:12px}
+.consg{margin:0 2px 10px}.consg button{flex:1}
+#glsearch{width:100%;margin-bottom:10px;background:var(--input);border:1px solid var(--line);color:var(--txt);border-radius:7px;padding:7px 10px;font:inherit}
+.gll{display:grid;gap:6px}.gle{background:var(--panel);border:1px solid var(--line2);border-radius:7px;padding:8px 11px;font-size:13px}.gle b{font:600 15px var(--head)}.gle p{margin:4px 0}
+.gle.focus{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)}
 .escnote{margin-top:6px;padding:6px 8px;border-radius:6px;background:var(--panel2);color:var(--txt)}
 @media (prefers-reduced-motion:reduce){#flash.on{animation:none}}
 /* paneles: entrada y salida con deslizamiento y fundido (nunca de golpe) */
@@ -345,7 +352,7 @@ body[data-level=experto] .obs.w{box-shadow:none}
       <button data-tab="tickets"><span data-i18n="tabs.tickets">Tickets</span><span id="tkbadge" hidden></span></button>
       <button data-tab="cambios" data-i18n="tabs.changes">Cambios</button>
       <button data-tab="accesos" data-i18n="tabs.access">Accesos</button>
-      <button data-tab="runbooks" data-i18n="tabs.runbooks">Runbooks</button>
+      <button data-tab="consulta" data-i18n="tabs.consulta">Consulta</button>
       <button data-tab="bitacora" data-i18n="tabs.log">Bitácora</button>
     </nav>
     <div id="activebar"></div>

@@ -66,7 +66,9 @@ export default {
     st: { ok: 'Operando', warn: 'Advertencia', crit: 'Falla (temperatura crítica)', down: 'Apagado', off: 'Pasivo (sin energía)' },
   },
   pdu: { state: 'Estado', on: 'Con energía', tripped: 'DISPARADA', load: 'Carga', feed: 'Alimentada por', devices: 'Fuentes conectadas', sub: 'Regleta de distribución vertical (0U)' },
-  tabs: { monitoring: 'Monitoreo', tickets: 'Tickets', changes: 'Cambios', access: 'Accesos', runbooks: 'Runbooks', log: 'Bitácora' },
+  tabs: { monitoring: 'Monitoreo', tickets: 'Tickets', changes: 'Cambios', access: 'Accesos', runbooks: 'Runbooks', consulta: 'Consulta', log: 'Bitácora' },
+  consulta: { runbooks: 'Runbooks', glossary: 'Glosario', search: 'Buscar en el glosario…' },
+  glossary: { example: 'En la sala:', open: 'Ver en el glosario' },
   summary: {
     devices: '<b>{devices}</b> equipos monitoreados · <b>{racks}</b> racks',
     racksOk: 'Racks OK',
