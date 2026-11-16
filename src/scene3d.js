@@ -267,6 +267,12 @@ export function createScene(container, handlers) {
   water.rotation.x = -Math.PI / 2; water.position.set(0.7, 0.007, -2.42); water.visible = false; scene.add(water);
   water.userData = leakZone.userData; pickables.push(water);
 
+  // Caja de embalaje junto a R06 (hallazgo del checklist de ronda; se retira con una acción)
+  const boxMat = std({ roughness: 0.95 }); TB.color(boxMat, (T) => T.scene.cardboard);
+  const trashBox = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.3, 0.32), boxMat);
+  trashBox.position.set(2.48, 0.15, 2.05); trashBox.rotation.y = 0.3; scene.add(trashBox);
+  trashBox.userData = { kind: 'rack', id: 'R06' }; pickables.push(trashBox);
+
   // Baldosa de la zona 3 (se levanta) y paños absorbentes (aparecen al contener)
   const tilePivot = new THREE.Group(); tilePivot.position.set(0.41, 0.012, -2.42); scene.add(tilePivot);
   const tileMat = std({ map: tileTex, roughness: 0.9 });
@@ -665,6 +671,7 @@ export function createScene(container, handlers) {
     upss['UPS-B'].scr.material.color.set(T.led.on);
     water.visible = world.leak.active;
     water.scale.setScalar(Math.max(0.05, world.leak.radius));
+    trashBox.visible = !!world.flags.trash;
     tileTarget = world.flags.tileLifted && world.leak.active ? -1.15 : 0;
     matsTarget = world.leak.active && world.leak.contained ? 1 : 0.001;
   }

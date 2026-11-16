@@ -36,7 +36,7 @@ export default {
         crac: '#b1b5b9', cracGrille: '#a3a7ab', cracSlat: '#91959a', cracPanel: '#3a3e42', cracText: '#eceef0',
         ups: '#aaaeb2', glass: '#c2c9ce', glassFrame: '#8e9398', acs: '#5a5f64', acsGlow: '#1e2a24',
         sensor: '#f3f4f5', sensorGlow: '#3a3e42', cable: '#3d6fb5', cableGlow: '#14305e', water: '#3d6fb5', leak: '#e5a000', rope: '#9a8a5a',
-        gapGlow: '#e08a00', select: '#3b4a6b', outline: 2.5,
+        cardboard: '#9a958e', gapGlow: '#e08a00', select: '#3b4a6b', outline: 2.5,
         label: { bg: 'rgba(240,241,242,0.92)', border: 'rgba(0,0,0,0.16)', txt: '#1c2023', sub: '#475057' },
         rv: {
           frame: '#9fa3a8', side: '#aaaeb2', railBg: '#3a3e42', railLine: '#4a4f54', railHole: '#1c1f22', railNum: '#c5cad0', railNumMajor: '#ffffff',
@@ -69,7 +69,7 @@ export default {
         crac: '#5f6469', cracGrille: '#575c60', cracSlat: '#4b4f53', cracPanel: '#25282b', cracText: '#e8eaec',
         ups: '#5b6065', glass: '#9aa3aa', glassFrame: '#787d82', acs: '#3e4246', acsGlow: '#1e2a24',
         sensor: '#e8eaec', sensorGlow: '#3a3e42', cable: '#7aa7e0', cableGlow: '#1d3a66', water: '#7aa7e0', leak: '#f0b429', rope: '#9a8a5a',
-        gapGlow: '#ffa726', select: '#a9b8d8', outline: 2.5,
+        cardboard: '#6f6a64', gapGlow: '#ffa726', select: '#a9b8d8', outline: 2.5,
         label: { bg: 'rgba(43,47,50,0.9)', border: 'rgba(255,255,255,0.14)', txt: '#e8eaec', sub: '#b0b6bb' },
         rv: {
           frame: '#575c61', side: '#4d5257', railBg: '#25282b', railLine: '#35393d', railHole: '#141618', railNum: '#b0b6bb', railNumMajor: '#ffffff',

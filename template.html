@@ -264,6 +264,15 @@ body[data-level=experto] .obs.w{box-shadow:none}
 #coach .ch{display:flex;justify-content:space-between;align-items:center;gap:8px}#coach .ch b{font:600 13px var(--head);letter-spacing:.08em;text-transform:uppercase;color:var(--acc-text)}#coach p{margin:8px 0}.cf{display:flex;justify-content:flex-end}
 .coach-target{outline:3px solid var(--acc)!important;outline-offset:3px;border-radius:8px;z-index:31}
 .reflect p{margin:4px 0 8px}.rfb{margin:8px 0 0;font-size:13.5px;min-height:1.2em}
+body:not([data-mode2=ronda]) .tabs button[data-tab=ronda]{display:none}
+body[data-mode2=ronda] .tabs button[data-tab=monitoreo],body[data-mode2=ronda] .tabs button[data-tab=tickets]{display:none}
+body[data-mode2=ronda] #clockwrap .seg,body[data-mode2=ronda] #shiftbar{display:none}
+.rtop{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:2px 2px 6px;font-size:13px;font-variant-numeric:tabular-nums}.rtop .btn{padding:6px 12px}
+.ritem{background:var(--panel);border:1px solid var(--line2);border-radius:8px;padding:9px 11px;margin-bottom:8px;display:grid;gap:7px}
+.ritem.active{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)}
+.ritem .rh{display:flex;justify-content:space-between;gap:8px;align-items:baseline}.ritem .rh b{font:600 14px var(--head)}.rseen{font-size:12px;white-space:nowrap}
+.rwhy{margin:0;font-size:13px}.rwhere{margin:0}.rst button{flex:1}.ritem .evl{margin:0}
+.rfoot{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
 .escnote{margin-top:6px;padding:6px 8px;border-radius:6px;background:var(--panel2);color:var(--txt)}
 @media (prefers-reduced-motion:reduce){#flash.on{animation:none}}
 /* paneles: entrada y salida con deslizamiento y fundido (nunca de golpe) */
@@ -359,6 +368,7 @@ body[data-level=experto] .obs.w{box-shadow:none}
   <aside>
     <div id="summary"></div>
     <nav class="tabs" role="tablist">
+      <button data-tab="ronda" data-i18n="tabs.ronda">Ronda</button>
       <button data-tab="monitoreo" class="on" data-i18n="tabs.monitoring">Monitoreo</button>
       <button data-tab="tickets"><span data-i18n="tabs.tickets">Tickets</span><span id="tkbadge" hidden></span></button>
       <button data-tab="cambios" data-i18n="tabs.changes">Cambios</button>
@@ -390,11 +400,12 @@ body[data-level=experto] .obs.w{box-shadow:none}
           <div class="lvl"><div class="seg" role="group" aria-label="Nivel" data-i18n-attr="aria-label:levels.title"><button type="button" data-level="guiado" data-i18n="levels.guiado">Guiado</button><button type="button" data-level="normal" data-i18n="levels.normal">Normal</button><button type="button" data-level="experto" data-i18n="levels.experto">Experto</button></div><p class="muted small" id="leveldesc"></p></div>
           <a class="btn" href="#turno" id="turnobtn" data-i18n="landing.turnoStart">Comenzar turno</a>
         </article>
-        <article class="modecard soon" data-modecard="checklist">
-          <div class="mch"><h3 data-i18n="landing.checklistTitle"></h3><span class="chip" data-i18n="landing.soon"></span></div>
+        <article class="modecard" data-modecard="checklist">
+          <div class="mch"><h3 data-i18n="landing.checklistTitle"></h3><span class="chip done" data-i18n="landing.available"></span></div>
           <p data-i18n="landing.checklistDesc"></p>
           <div class="mct mono">⏱ <span data-i18n="landing.checklistTime"></span></div>
-          <a class="btn ghost" href="#checklist" aria-disabled="true" data-i18n="landing.soonBtn">Próximamente</a>
+          <div class="lvl"><div class="seg" role="group" aria-label="Nivel" data-i18n-attr="aria-label:levels.title"><button type="button" data-level="guiado" data-i18n="levels.guiado">Guiado</button><button type="button" data-level="normal" data-i18n="levels.normal">Normal</button><button type="button" data-level="experto" data-i18n="levels.experto">Experto</button></div><p class="muted small" id="leveldesc2"></p></div>
+          <a class="btn" href="#checklist" id="rondabtn" data-i18n="landing.checklistStart">Comenzar ronda</a>
         </article>
         <article class="modecard soon" data-modecard="demo">
           <div class="mch"><h3 data-i18n="landing.demoTitle"></h3><span class="chip" data-i18n="landing.soon"></span></div>

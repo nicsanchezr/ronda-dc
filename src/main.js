@@ -1,4 +1,4 @@
-import { INCIDENTS, NOISE, ACCESS, CALENDAR, RUNBOOKS, ESCALATIONS, CLASSES, PRIORITIES, SEV, SHIFT, RACKS, CLIENTS, FIELD_ACTIONS, LEVELS, schedFor, TUTORIAL, DURATIONS, durationOf } from './scenario.js';
+import { INCIDENTS, NOISE, ACCESS, CALENDAR, RUNBOOKS, ESCALATIONS, CLASSES, PRIORITIES, SEV, SHIFT, RACKS, CLIENTS, FIELD_ACTIONS, LEVELS, schedFor, TUTORIAL, DURATIONS, durationOf, ROUND_ITEMS, ROUND_SCORE } from './scenario.js';
 import { createWorld, step, startIncident, applyClose, inspect, rackSeverity, clock, fmt1, TOTAL_DEVICES, rackMaxInlet, fieldAvailable, fieldActionsFor, requestAuth, doField, fieldById } from './sim.js';
 import { scoreTicket as scoreCore, actionStatus, LEVEL_RULES } from './scoring.js';
 import { createScene } from './scene3d.js';
@@ -22,7 +22,7 @@ function freshState(level = 'normal', duration = 'completo') {
     world: createWorld(schedFor(level, duration)), duration, shiftLen: durationOf(duration).length, running: false, speed: 1, mode: 'estado', tab: 'monitoreo',
     tickets: [], active: null, started: new Set(), sel: null, ended: false, modal: false,
     notes: [], lastMinute: -1, seenSys: 0, begun: false,
-    level, seen: {}, seenFirst: {}, act: null, confirm: null, consulta: 'runbooks', glFocus: null, tut: null, tutorHidden: false,
+    level, seen: {}, seenFirst: {}, act: null, confirm: null, consulta: 'runbooks', glFocus: null, tut: null, tutorHidden: false, mode2: null, ronda: null,
   };
 }
 
@@ -153,7 +153,8 @@ function skipToNext() {
 // ---------- Panel lateral -------------------------------------------------------------
 function attachBtn(id, label) {
   const tk = S.tickets.find((t) => t.id === S.active);
-  const on = tk && !tk.closedAt && tk.evidence.some((e) => e.id === id);
+  const ri = S.mode2 === 'ronda' ? rondaActive() : null;
+  const on = ri ? ri.evidence.some((e) => e.id === id) : tk && !tk.closedAt && tk.evidence.some((e) => e.id === id);
   return `<button class="att ${on ? 'on' : ''}" data-act="attach" data-ev="${esc(id)}" data-label="${esc(label)}" title="${on ? t('ticket.attachOn') : t('ticket.attachOff')}" aria-label="${t('ticket.attachAria')}">${on ? '✓' : '📎'}</button>`;
 }
 
@@ -177,7 +178,9 @@ function renderPanel() {
   $('#tkbadge').textContent = nOpen || '';
   $('#tkbadge').hidden = !nOpen;
   const tk = S.tickets.find((t) => t.id === S.active);
-  $('#activebar').innerHTML = tk && !tk.closedAt
+  $('#activebar').innerHTML = S.mode2 === 'ronda'
+    ? (rondaActive() ? t('ronda.activeItem', { title: esc(ROUND_ITEMS.find((x) => x.id === S.ronda.active).title) }) : `<span class="muted">${t('ronda.pickItem')}</span>`)
+    : tk && !tk.closedAt
     ? t('panel.activeTicket', { id: tk.id, title: esc(tk.inc.title) })
     : `<span class="muted">${t('panel.noActive')}</span>`;
   let h = '';
@@ -214,6 +217,8 @@ function renderPanel() {
       <div class="row acc"><div class="when">${clock(a.t)}</div><div class="body">
         <div class="host">${esc(a.who)}</div><div class="muted">${t('panel.accessRow', { card: esc(a.card), door: esc(a.door), note: esc(a.note) })}</div></div>
         ${attachBtn('acc:' + a.id, clock(a.t) + ' · ' + a.who + ' · ' + a.card + ' · ' + a.note)}</div>`).join('');
+  } else if (tab === 'ronda') {
+    h = rondaHtml();
   } else if (tab === 'consulta') {
     const seg = `<div class="seg consg" role="group" aria-label="${t('tabs.consulta')}"><button data-cons="runbooks" class="${S.consulta === 'runbooks' ? 'on' : ''}">${t('consulta.runbooks')}</button><button data-cons="glosario" class="${S.consulta === 'glosario' ? 'on' : ''}">${t('consulta.glossary')}</button></div>`;
     h = seg + (S.consulta === 'glosario'
@@ -315,6 +320,122 @@ function renderRackUI(id) {
     S.sel = { kind: 'rack', id: S.sel.id.split('/')[0] };
   }
   renderInspector();
+}
+
+// ---------- Checklist de ronda ----------------------------------------------------------------
+const rondaActive = () => (S.ronda && S.ronda.active ? S.ronda.items.find((x) => x.id === S.ronda.active) : null);
+const seenKey = (k) => (k.startsWith('tab:') ? k : 'insp:' + k);
+const itemSeen = (it) => it.look.every((g) => g.some((k) => S.seen[seenKey(k)] !== undefined));
+const itemFixed = (it) => (it.fix || []).some((f) => (f.startsWith('auth:') ? !!S.world.auth[f.slice(5)] : !!S.world.done[f]));
+const elapsed = () => { const s = Math.round((Date.now() - S.ronda.startReal) / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+function refreshAll() { scene.update(S.world, S.mode, sevMap()); renderPanel(); renderInspector(); }
+
+function rondaHtml() {
+  const R = S.ronda; if (!R) return '';
+  const seenN = ROUND_ITEMS.filter(itemSeen).length, markedN = R.items.filter((x) => x.status).length;
+  const help = (it) => (S.level === 'guiado' ? `<p class="rwhy">${gl(it.why)}</p>` : S.level === 'normal' ? `<p class="rwhere muted small">${t('ronda.where')} ${esc(it.where)}</p>` : '');
+  const ST = [['ok', 'ronda.ok'], ['obs', 'ronda.obs'], ['falla', 'ronda.fail']];
+  return `<div class="rtop"><span>${t('ronda.progress', { seen: seenN, marked: markedN, n: ROUND_ITEMS.length })}</span>${R.done ? '' : `<button class="btn" data-act="rfinish">${t('ronda.finish')}</button>`}</div>
+    <p class="hint">${t(S.level === 'guiado' ? 'ronda.introGuided' : 'ronda.intro')}</p>` + ROUND_ITEMS.map((it, i) => {
+    const ri = R.items.find((x) => x.id === it.id), seen = itemSeen(it), fixed = itemFixed(it);
+    return `<article class="ritem${R.active === it.id ? ' active' : ''}" data-item="${it.id}">
+      <div class="rh"><b>${i + 1}. ${esc(it.title)}</b><span class="rseen ${seen ? 'good' : 'muted'}">${t(seen ? 'ronda.seen' : 'ronda.notSeen')}</span></div>
+      ${help(it)}
+      <div class="seg rst" role="group" aria-label="${esc(it.title)}">${ST.map(([v, k]) => `<button data-act="rstatus" data-item="${it.id}" data-v="${v}" class="${ri.status === v ? 'on' : ''}" aria-pressed="${ri.status === v}" ${R.done ? 'disabled' : ''}>${t(k)}</button>`).join('')}</div>
+      ${ri.evidence.length ? `<ul class="evl">${ri.evidence.map((e) => `<li>${esc(e.label)}${R.done ? '' : ` <button class="link" data-act="rdetach" data-item="${it.id}" data-ev="${esc(e.id)}">${t('ticket.remove')}</button>`}</li>`).join('')}</ul>` : ''}
+      <div class="rfoot">${R.done ? '' : `<button class="link" data-act="ritem" data-item="${it.id}">${t(R.active === it.id ? 'ronda.attaching' : 'ronda.attachHere')}</button>`}${fixed ? `<span class="good small">${t('ronda.fixed')}</span>` : ''}</div>
+    </article>`;
+  }).join('');
+}
+
+function scoreRonda() {
+  const P = ROUND_SCORE;
+  const rows = ROUND_ITEMS.map((it) => {
+    const ri = S.ronda.items.find((x) => x.id === it.id), seen = itemSeen(it), fixed = itemFixed(it);
+    const st = ri.status;
+    const seenPts = seen ? P.seen : 0;
+    let statusPts = 0;
+    if (st && seen) statusPts = st === it.expected ? P.status : st !== 'ok' && it.expected !== 'ok' ? 2 : 0;
+    const evOk = it.expected === 'ok' ? st === 'ok' && seen : it.evidence.every((e) => ri.evidence.some((x) => x.id === e));
+    const evPts = evOk ? P.evidence : 0;
+    const bonus = fixed ? P.fix : 0;
+    return { it, st, seen, fixed, pts: seenPts + statusPts + evPts, bonus, unchecked: !!st && !seen, missingEv: it.expected !== 'ok' && !evOk };
+  });
+  const total = rows.reduce((s, r) => s + r.pts, 0), bonus = rows.reduce((s, r) => s + r.bonus, 0);
+  const findings = ROUND_ITEMS.filter((it) => it.expected !== 'ok').length;
+  const found = rows.filter((r) => r.it.expected !== 'ok' && r.st && r.st !== 'ok' && r.seen).length;
+  return { rows, total, bonus, pct: Math.min(100, total + bonus), seenN: rows.filter((r) => r.seen).length, correct: rows.filter((r) => r.st === r.it.expected && r.seen).length, found, findings, time: elapsed() };
+}
+
+function startRonda(level) {
+  boot(level, 'completo');
+  S.mode2 = 'ronda'; S.begun = true; S.tab = 'ronda';
+  S.ronda = { items: ROUND_ITEMS.map((it) => ({ id: it.id, status: null, evidence: [] })), active: ROUND_ITEMS[0].id, startReal: Date.now(), done: false, result: null };
+  document.body.dataset.mode2 = 'ronda';
+  $('#endbtn').textContent = t('ronda.finish');
+  $('#clock').textContent = '07:45';
+  S.world.log.push({ t: 0, kind: 'sala', text: t('ronda.logStart') });
+  refreshAll();
+}
+function enterChecklist(level) {
+  if (!(S.mode2 === 'ronda' && !S.ronda.done && S.level === level)) startRonda(level);
+  if (!document.body.classList.contains('is-landing')) return;
+  toggleSettings(false);
+  panelHide($('#landing'));
+  document.body.classList.remove('is-landing');
+  $('header').appendChild($('.settings'));
+  for (const el of [$('header'), $('aside')]) { el.classList.remove('entering'); void el.offsetWidth; el.classList.add('entering'); el.addEventListener('animationend', () => el.classList.remove('entering'), { once: true }); }
+  scene.setLanding(false, () => renderPanel());
+}
+function finishRonda() {
+  if (!S.ronda || S.ronda.done) return;
+  S.ronda.done = true;
+  const r = S.ronda.result = scoreRonda();
+  S.world.log.push({ t: 0, kind: 'sala', text: t('ronda.logEnd', { pts: r.total }) });
+  const ST = { ok: t('ronda.ok'), obs: t('ronda.obs'), falla: t('ronda.fail') };
+  $('#endbox').innerHTML = `<h2>${t('ronda.resultTitle')}</h2>
+    <p class="muted">${t('levels.endLine', { level: t('levels.' + S.level), hints: 0 }).split(' · ')[0]} · ${t('ronda.time', { time: r.time })}</p>
+    <div class="endgrid">
+      <div class="kpi"><b>${r.total}${r.bonus ? ` <small class="bonus">+${r.bonus}</small>` : ''}</b><span>${t('ronda.ptsOf', { pct: r.pct })}</span></div>
+      <div class="kpi"><b>${r.seenN}/${ROUND_ITEMS.length}</b><span>${t('ronda.kSeen')}</span></div>
+      <div class="kpi"><b>${r.correct}/${ROUND_ITEMS.length}</b><span>${t('ronda.kCorrect')}</span></div>
+      <div class="kpi"><b>${r.found}/${r.findings}</b><span>${t('ronda.kFound')}</span></div>
+    </div>
+    <h3>${t('ronda.items')}</h3>
+    <table class="rev"><tr><th>${t('ronda.colItem')}</th><th>${t('ronda.colYours')}</th><th>${t('ronda.colExp')}</th><th>${t('review.colPts')}</th></tr>
+    ${r.rows.map((x) => `<tr><td><b>${esc(x.it.title)}</b><div class="small">${gl(x.it.finding)}</div><div class="muted small">${esc(x.it.ref)}</div>${x.unchecked ? `<div class="bad small">${t('ronda.unchecked')}</div>` : ''}${x.missingEv && x.st ? `<div class="warn small">${t('ronda.missingEv')}</div>` : ''}${x.fixed ? `<div class="good small">${t('ronda.fixedBonus', { n: ROUND_SCORE.fix })}</div>` : ''}</td><td>${x.st ? ST[x.st] : '—'}</td><td>${ST[x.it.expected]}</td><td class="mono">${x.pts}/10</td></tr>`).join('')}</table>
+    <div class="mf"><a class="btn ghost" href="#">${t('landing.home')}</a><button class="btn ghost" data-act="rdownload" id="rdl">${t('end.download')}</button><button class="btn ghost" data-act="rcopy">${t('end.copy')}</button><button class="btn" data-act="rcontinue">${t('ronda.continue')}</button></div>
+    <p class="muted small" id="copymsg">${t('ronda.continueHint')}</p>`;
+  if (window.self !== window.top) $('#rdl').hidden = true;
+  $('#end').hidden = false;
+  renderPanel();
+}
+function continueFromRonda() {
+  const w = S.world, du = chosenDuration();
+  S.mode2 = null; delete document.body.dataset.mode2;
+  w.sched = schedFor(S.level, du); S.duration = du; S.shiftLen = durationOf(du).length;
+  S.begun = false; S.tab = 'monitoreo';
+  $('#end').hidden = true;
+  $('#endbtn').textContent = t('header.end');
+  $('#clock').textContent = clock(0);
+  history.replaceState(null, '', '#turno/' + S.level + '/' + du);
+  $('#briefing .lead').innerHTML = t(du === 'corto' ? 'intro.leadShort' : 'intro.lead');
+  panelShow($('#briefing'), 'brief');
+  refreshAll();
+}
+function rondaReport() {
+  const r = S.ronda.result || scoreRonda();
+  const ST = { ok: t('ronda.ok'), obs: t('ronda.obs'), falla: t('ronda.fail') };
+  const L = [t('ronda.reportTitle'), '', `${t('app.siteFull')} · ${t('app.role')} · ${new Date().toLocaleDateString('es-CL')}`, '',
+    t('ronda.reportScore', { pts: r.total, bonus: r.bonus, pct: r.pct }), t('ronda.reportStats', { seen: r.seenN, n: ROUND_ITEMS.length, correct: r.correct, found: r.found, findings: r.findings, time: r.time, level: t('levels.' + S.level) }), ''];
+  r.rows.forEach((x, i) => {
+    const ri = S.ronda.items.find((y) => y.id === x.it.id);
+    L.push(`### ${i + 1}. ${x.it.title} · ${x.pts}/10`, '', t('ronda.reportLine', { yours: x.st ? ST[x.st] : '—', exp: ST[x.it.expected], seen: t(x.seen ? 'ronda.seen' : 'ronda.notSeen') }));
+    if (ri.evidence.length) L.push(t('report.evidence', { list: ri.evidence.map((e) => e.label).join(' | ') }));
+    if (x.fixed) L.push(t('ronda.reportFixed'));
+    L.push('', `> ${x.it.finding} (${x.it.ref})`, '');
+  });
+  return L.join('\n');
 }
 
 // ---------- Tutor del nivel Guiado -----------------------------------------------------------
@@ -430,6 +551,12 @@ function startField(id) {
   const fa = fieldById(id); const w = S.world;
   if (!fa || S.act || !fieldAvailable(w, fa)) return;
   S.confirm = null;
+  if (S.mode2 === 'ronda') { // antes del turno: la acción se completa sin avanzar el reloj
+    S.act = { fa, start: w.t, end: w.t, wasRunning: false };
+    updateSpeedUI(); renderInspector();
+    setTimeout(() => { if (S.act && S.act.fa === fa) { finishField(); refreshAll(); } }, 900);
+    return;
+  }
   S.act = { fa, start: w.t, end: w.t + fa.min, wasRunning: S.running };
   S.running = true; lastTs = performance.now();
   updateSpeedUI(); renderInspector();
@@ -700,7 +827,12 @@ function report() {
 document.addEventListener('click', async (e) => {
   const b = e.target.closest('[data-act],[data-cons]'); if (!b) return;
   const act = b.dataset.act;
-  if (act === 'attach') {
+  if (act === 'attach' && S.mode2 === 'ronda') {
+    const ri = rondaActive(); if (!ri) { toast(t('ronda.pickItem')); return; }
+    const id = b.dataset.ev, i = ri.evidence.findIndex((x) => x.id === id);
+    if (i >= 0) ri.evidence.splice(i, 1); else ri.evidence.push({ id, label: b.dataset.label });
+    renderPanel(); renderInspector();
+  } else if (act === 'attach') {
     const tk = S.tickets.find((x) => x.id === S.active);
     if (!tk || tk.closedAt != null) { toast(t('ticket.needTicket')); return; }
     const id = b.dataset.ev;
@@ -724,6 +856,13 @@ document.addEventListener('click', async (e) => {
   else if (act === 'coach-next') coachNext();
   else if (act === 'coach-skip') endTutorial();
   else if (act === 'tutor-toggle') { S.tutorHidden = !S.tutorHidden; renderTutor(); }
+  else if (act === 'ritem') { S.ronda.active = b.dataset.item; renderPanel(); renderInspector(); }
+  else if (act === 'rstatus') { const ri = S.ronda.items.find((x) => x.id === b.dataset.item); ri.status = ri.status === b.dataset.v ? null : b.dataset.v; S.ronda.active = ri.id; renderPanel(); }
+  else if (act === 'rdetach') { const ri = S.ronda.items.find((x) => x.id === b.dataset.item); ri.evidence = ri.evidence.filter((e) => e.id !== b.dataset.ev); renderPanel(); renderInspector(); }
+  else if (act === 'rfinish') finishRonda();
+  else if (act === 'rcontinue') continueFromRonda();
+  else if (act === 'rcopy') { try { await navigator.clipboard.writeText(rondaReport()); $('#copymsg').textContent = t('end.copied'); } catch (err) { $('#copymsg').textContent = t('end.copyFail'); } }
+  else if (act === 'rdownload') { try { const blob = new Blob([rondaReport()], { type: 'text/markdown' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = t('ronda.file'); a.click(); } catch (err) { /* bloqueado */ } }
   else if (act === 'fa') { if (!S.act) { S.confirm = b.dataset.fa; renderInspector(); } }
   else if (act === 'fa-cancel') { S.confirm = null; renderInspector(); }
   else if (act === 'fa-ok') startField(b.dataset.fa);
@@ -761,7 +900,7 @@ document.querySelectorAll('[data-speed]').forEach((b) => b.addEventListener('cli
 }));
 $('#pause').addEventListener('click', () => { S.running = !S.running; updateSpeedUI(); });
 $('#skip').addEventListener('click', skipToNext);
-$('#endbtn').addEventListener('click', () => { if (S.ended) { $('#end').hidden = false; return; } const n = openTickets().length; if (n && !$('#endbtn').dataset.confirm) { $('#endbtn').dataset.confirm = '1'; $('#endbtn').textContent = t('header.endConfirm', { n }); setTimeout(() => { $('#endbtn').textContent = t('header.end'); delete $('#endbtn').dataset.confirm; }, 3000); return; } endShift(); });
+$('#endbtn').addEventListener('click', () => { if (S.mode2 === 'ronda') { finishRonda(); return; } if (S.ended) { $('#end').hidden = false; return; } const n = openTickets().length; if (n && !$('#endbtn').dataset.confirm) { $('#endbtn').dataset.confirm = '1'; $('#endbtn').textContent = t('header.endConfirm', { n }); setTimeout(() => { $('#endbtn').textContent = t('header.end'); delete $('#endbtn').dataset.confirm; }, 3000); return; } endShift(); });
 document.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => scene.setView(b.dataset.view)));
 $('#rackback').addEventListener('click', () => { if (!scene.busy) scene.exitRack(); });
 document.querySelectorAll('[data-side]').forEach((b) => b.addEventListener('click', () => {
@@ -794,6 +933,8 @@ function updateSpeedUI() {
 function boot(level = (S && S.level) || 'normal', duration = (S && S.duration) || 'completo') {
   if (scene.detail) scene.exitRack();
   S = freshState(level, duration);
+  delete document.body.dataset.mode2;
+  $('#endbtn').textContent = t('header.end');
   $('#shiftbar').title = t('header.shiftBarDyn', { end: clock(S.shiftLen) });
   document.body.dataset.level = level;
   const lb = $('#levelbadge'); if (lb) lb.textContent = t('levels.' + level);
@@ -852,7 +993,7 @@ document.addEventListener('click', (e) => { if (!$('#helppop').hidden && !e.targ
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#helppop').hidden) { toggleHelp(false); $('#helpbtn').focus(); } });
 
 // ---------- Portada y rutas por hash (#turno, #checklist, #demo) ------------------------------
-const SOON = ['checklist', 'demo'];
+const SOON = ['demo'];
 function renderLastRun() {
   const last = loadLastRun();
   $('#lastrun').textContent = last ? t('landing.lastRun', { pts: last.pts, max: last.max, date: last.fecha }) : t('landing.lastNone');
@@ -879,6 +1020,7 @@ function showLanding(soon) {
 }
 function enterTurno() {
   if (!document.body.classList.contains('is-landing')) return;
+  if (S.mode2 === 'ronda') { boot(S.level, S.duration); }
   toggleSettings(false);
   panelHide($('#landing'));
   document.body.classList.remove('is-landing');
@@ -898,6 +1040,8 @@ function renderLevelPicker() {
   const lv = chosenLevel();
   document.querySelectorAll('[data-level]').forEach((b) => { b.classList.toggle('on', b.dataset.level === lv); b.setAttribute('aria-pressed', b.dataset.level === lv); });
   $('#leveldesc').textContent = t('levels.' + lv + 'Desc');
+  $('#leveldesc2').textContent = t('levels.' + lv + 'RondaDesc');
+  $('#rondabtn').setAttribute('href', '#checklist/' + lv);
   const du = chosenDuration();
   document.querySelectorAll('[data-duration]').forEach((b) => { b.classList.toggle('on', b.dataset.duration === du); b.setAttribute('aria-pressed', b.dataset.duration === du); });
   $('#turnotime').textContent = t('durations.' + du + 'Desc');
@@ -909,6 +1053,11 @@ document.querySelectorAll('[data-level]').forEach((b) => b.addEventListener('cli
 function route() {
   const h = location.hash.replace(/^#\/?/, '');
   const [r0, r1, r2] = h.split('/');
+  if (r0 === 'checklist') {
+    const lv = LEVELS.some((l) => l.id === r1) ? r1 : 'normal';
+    enterChecklist(lv);
+    return;
+  }
   if (r0 === 'turno') {
     const lv = LEVELS.some((l) => l.id === r1) ? r1 : 'normal';
     const du = DURATIONS.some((d) => d.id === r2) ? r2 : 'completo';
@@ -923,12 +1072,14 @@ if (/[?&]test\b/.test(location.search)) {
   window.__ronda = {
     step(min) { advance(min); tickUI(); S.lastMinute = -1; tickUI(); },
     select(kind, id) { S.sel = { kind, id }; renderInspector(); },
+    rondaReport: () => rondaReport(),
     state() {
       const w = S.world;
       return {
         t: w.t, level: S.level, duration: S.duration, shiftLen: S.shiftLen, act: S.act ? S.act.fa.id : null, impacts: w.impacts.map((i) => i.text), done: Object.keys(w.done),
         tickets: S.tickets.map((x) => ({ id: x.id, inc: x.inc.id, proactive: !!x.proactive, closed: x.closedAt != null, total: x.result ? x.result.total : null, bonus: x.result ? x.result.bonus : 0, evidence: x.evidence.map((e) => e.id) })),
-        ended: S.ended,
+        ended: S.ended, mode2: S.mode2,
+        ronda: S.ronda ? { done: S.ronda.done, items: S.ronda.items.map((x) => ({ id: x.id, status: x.status, evidence: x.evidence.map((e) => e.id) })), result: S.ronda.result ? { total: S.ronda.result.total, bonus: S.ronda.result.bonus } : null } : null,
       };
     },
   };

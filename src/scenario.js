@@ -199,6 +199,7 @@ export const FIELD_ACTIONS = [
   { id: 'photo-r02', inc: 'E8', on: [{ kind: 'rack', id: 'R02' }], label: 'Fotografiar', verb: 'Fotografiando', min: 1, photo: 'Foto · puerta trasera de R02 y cable de consola' },
   { id: 'door-secure', inc: 'E8', on: [{ kind: 'rack', id: 'R02' }], label: 'Asegurar la puerta trasera', verb: 'Asegurando la puerta', min: 2 },
   { id: 'cable-unplug', inc: 'E8', on: [{ kind: 'device', id: 'R02/fw-01' }], label: 'Desconectar el cable de consola de fw-01', verb: 'Desconectando el cable', min: 1 },
+  { id: 'trash-remove', inc: null, on: [{ kind: 'rack', id: 'R06' }], label: 'Retirar el embalaje del pasillo', verb: 'Retirando el embalaje', min: 2 },
   { id: 'fw01-reboot', inc: 'E8', on: [{ kind: 'device', id: 'R02/fw-01' }], label: 'Reiniciar fw-01', verb: 'Reiniciando fw-01', min: 2, restricted: true, auth: { grant: false, after: 5 } },
 ];
 
@@ -221,6 +222,216 @@ export const FIELD_ACTIONS = [
 // proactive: 'id' → si esa acción en sala se hizo antes de la alerta, la alerta no salta y el
 //                  ticket se crea como «Hallazgo proactivo» (sin SLA y con bonificación).
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Checklist de ronda (ronda de inicio de turno). Cada ítem:
+//   look: grupos de lugares a revisar (en cada grupo basta uno: 'rack:R01', 'tab:accesos'…)
+//   expected: 'ok' | 'obs' | 'falla' · evidence: observaciones que respaldan el hallazgo
+//   fix: acciones en sala (o 'auth:<id>' = pedir autorización) que corrigen el hallazgo (bonificación)
+//   why: qué revisar y por qué (nivel Guiado) · where: dónde mirar (Normal) · finding: qué había
+// ---------------------------------------------------------------------------
+export const ROUND_ITEMS = [
+ {
+  "id": "temp",
+  "title": "Temperatura de entrada en ambas filas",
+  "where": "Un rack de la fila A y uno de la fila B.",
+  "look": [
+   [
+    "rack:R01",
+    "rack:R02",
+    "rack:R03",
+    "rack:R04",
+    "rack:R05"
+   ],
+   [
+    "rack:R06",
+    "rack:R07",
+    "rack:R08",
+    "rack:R09",
+    "rack:R10"
+   ]
+  ],
+  "expected": "ok",
+  "evidence": [],
+  "why": "Revisa la temperatura de entrada de un rack de cada fila: según ASHRAE debe estar entre 18 y 27 °C. Es el primer indicador de que la climatización llega a todos los equipos.",
+  "finding": "Ambas filas están entre 21 y 23 °C: dentro del rango recomendado.",
+  "ref": "ASHRAE TC 9.9"
+ },
+ {
+  "id": "crac",
+  "title": "Climatización (CRAC)",
+  "where": "CRAC-1 y CRAC-2.",
+  "look": [
+   [
+    "crac:CRAC-1"
+   ],
+   [
+    "crac:CRAC-2"
+   ]
+  ],
+  "expected": "obs",
+  "evidence": [
+   "obs:crac1-tray-high"
+  ],
+  "why": "Comprueba que los dos CRAC estén operando sin alarmas y mira su estado físico: bandejas de condensado, drenajes y filtros. Un problema menor hoy puede ser una falla o una fuga mañana.",
+  "finding": "La bandeja de condensado de CRAC-1 está casi llena y el drenaje corre lento: es una observación para Climatización antes de que se convierta en una fuga.",
+  "ref": "ASHRAE TC 9.9 · mantenimiento de climatización"
+ },
+ {
+  "id": "ups",
+  "title": "UPS y energía de la sala",
+  "where": "UPS-A y UPS-B.",
+  "look": [
+   [
+    "ups:UPS-A"
+   ],
+   [
+    "ups:UPS-B"
+   ]
+  ],
+  "expected": "ok",
+  "evidence": [],
+  "why": "Revisa que ambas UPS estén en línea, sin alarmas, con la batería cargada y una autonomía razonable. Son el respaldo de toda la sala ante un corte de red.",
+  "finding": "Ambas UPS en línea, sin alarmas y con la batería al 100 %.",
+  "ref": "IEEE 1188 · Uptime Institute Tiers"
+ },
+ {
+  "id": "ab",
+  "title": "Redundancia A/B de las fuentes",
+  "where": "Los racks con equipos instalados recientemente (revisa el calendario de cambios).",
+  "look": [
+   [
+    "rack:R06",
+    "device:R06/k8s-n7"
+   ]
+  ],
+  "expected": "falla",
+  "evidence": [
+   "obs:r06-psu"
+  ],
+  "fix": [
+   "psu-move",
+   "auth:psu-move"
+  ],
+  "why": "Cada equipo debe tener una fuente en la rama A y otra en la B. Revisa sobre todo los equipos instalados hace poco: el calendario de cambios te dice cuáles son.",
+  "finding": "k8s-n7 (instalado hoy con CHG-1045) tiene las dos fuentes en PDU-B: perdió la redundancia. Como es un equipo del cliente, se corrige con su autorización.",
+  "ref": "ANSI/TIA-942 · Uptime Institute Tiers"
+ },
+ {
+  "id": "blank",
+  "title": "Paneles ciegos",
+  "where": "El frente de los racks con U libres.",
+  "look": [
+   [
+    "rack:R08"
+   ]
+  ],
+  "expected": "falla",
+  "evidence": [
+   "obs:r08-blank"
+  ],
+  "fix": [
+   "blank-install"
+  ],
+  "why": "Las U libres del frente deben estar tapadas con paneles ciegos; si no, el aire caliente de atrás vuelve al frente y calienta los equipos. Revisa los racks que tienen espacios vacíos.",
+  "finding": "En R08 faltan paneles ciegos entre U30 y U34: provocarán recirculación de aire caliente durante el turno.",
+  "ref": "ASHRAE TC 9.9 · EU Code of Conduct"
+ },
+ {
+  "id": "doors",
+  "title": "Puertas y cerraduras de los racks",
+  "where": "Las puertas traseras de un rack de cada fila.",
+  "look": [
+   [
+    "rack:R01",
+    "rack:R02",
+    "rack:R03",
+    "rack:R04",
+    "rack:R05"
+   ],
+   [
+    "rack:R06",
+    "rack:R07",
+    "rack:R08",
+    "rack:R09",
+    "rack:R10"
+   ]
+  ],
+  "expected": "ok",
+  "evidence": [],
+  "why": "Las puertas de los racks deben estar cerradas y con llave: es un control físico básico que protege los equipos de los clientes.",
+  "finding": "Todas las puertas cerradas al inicio del turno.",
+  "ref": "ISO/IEC 27001:2022 A.7"
+ },
+ {
+  "id": "fire",
+  "title": "Detección y extinción de incendios",
+  "where": "El panel junto a la puerta de la sala (lector de acceso).",
+  "look": [
+   [
+    "acs:ACS"
+   ]
+  ],
+  "expected": "obs",
+  "evidence": [
+   "obs:fire-ext"
+  ],
+  "why": "Verifica que el sistema de detección temprana de humo (VESDA) no tenga alarmas y que los extintores estén en su lugar, con la carga vigente.",
+  "finding": "El extintor de CO₂ junto a la puerta tiene la carga vencida desde 09/2026: hay que pedir su recarga.",
+  "ref": "NFPA 75 · NFPA 76"
+ },
+ {
+  "id": "clean",
+  "title": "Orden y limpieza",
+  "where": "Los pasillos, sobre todo donde se instaló algo hace poco.",
+  "look": [
+   [
+    "rack:R06"
+   ]
+  ],
+  "expected": "obs",
+  "evidence": [
+   "obs:r06-box"
+  ],
+  "fix": [
+   "trash-remove"
+  ],
+  "why": "La sala debe estar libre de cartón y embalajes: generan polvo, son combustibles y pueden obstruir el flujo de aire.",
+  "finding": "Quedó una caja de embalaje del equipo instalado hoy junto a R06, en el pasillo caliente.",
+  "ref": "ANSI/TIA-942 · buenas prácticas de operación"
+ },
+ {
+  "id": "access",
+  "title": "Control de acceso",
+  "where": "El registro de accesos (pestaña Accesos).",
+  "look": [
+   [
+    "tab:accesos"
+   ]
+  ],
+  "expected": "ok",
+  "evidence": [],
+  "why": "Revisa los ingresos de la noche y del inicio del turno: cada uno debe tener un motivo (un cambio, una visita registrada o personal interno).",
+  "finding": "Los ingresos de las 07:28 y 07:59 tienen motivo: el cambio CHG-1045 y el operador de turno.",
+  "ref": "ISO/IEC 27001:2022 A.7"
+ },
+ {
+  "id": "floor",
+  "title": "Piso técnico y detección de fugas",
+  "where": "La zona del sensor de fugas, junto a CRAC-1.",
+  "look": [
+   [
+    "leak:LEAK-Z3"
+   ]
+  ],
+  "expected": "ok",
+  "evidence": [],
+  "why": "Revisa que el sensor de fugas no tenga alarmas y que el piso técnico esté seco y con las baldosas en su lugar.",
+  "finding": "El sensor de fugas está normal y el piso técnico seco.",
+  "ref": "ANSI/TIA-942"
+ }
+];
+export const ROUND_SCORE = { seen: 3, status: 5, evidence: 2, fix: 3 };
 
 // Tutorial interactivo de la interfaz (nivel Guiado, antes del primer evento).
 // until: 'run' (pulsa ▶) · 'next' (botón) · 'rack' (inspecciona un rack) · 'glossary' (abre un término) · 'done' (termina)

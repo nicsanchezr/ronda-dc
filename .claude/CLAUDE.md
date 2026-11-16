@@ -12,6 +12,7 @@ Contexto para Claude Code y para cualquier persona que contribuya. Ronda DC es u
 - Sala «Cordillera Colo · Sala A» (empresa ficticia), turno completo de 08:00 a 15:00 (8 eventos) o corto de 08:00 a 10:30 (E1, E3, E6 y E7), 10 racks (R01–R10) de tres clientes, CRAC-1/2, UPS-A/B, sensor de fugas y control de acceso.
 - 8 eventos: 3 que no requieren escalar (proveedor con cambio aprobado, sensor suelto que es un falso positivo, autoprueba de la UPS) y 5 reales (paneles ciegos, PSU B+B en PDU-B, falla de CRAC-2, fuga de condensado, puerta de R02 con un cable de consola).
 - Corrección por ticket: clasificación 25, prioridad 15, escalamiento 20, acciones 30, evidencia 10, menos SLA y pistas según el nivel; hallazgo proactivo +10 aparte (el porcentaje final no pasa del 100 %).
+- Checklist de ronda: 10 ítems (`ROUND_ITEMS` en `scenario.js`) marcados OK / observación / falla con evidencia; 5 hallazgos plantados (bandeja de CRAC-1, PSU B+B, paneles de R08, extintor vencido, embalaje junto a R06). 10 pts por ítem (revisado 3, estado 5, evidencia 2) y +3 por hallazgo corregido. El reloj no avanza; al terminar se puede comenzar un turno con la misma sala.
 - Dinámica: la temperatura sube si falla un CRAC (apagado térmico a 32 °C), la PDU dispara al 96 %, la fuga crece. 1 min de juego = 5 s reales a 1×.
 
 ## Estructura del código
@@ -30,7 +31,7 @@ Contexto para Claude Code y para cualquier persona que contribuya. Ronda DC es u
 - `assets/fonts/`: tipografías woff2 incrustadas (licencias en `LICENCIAS.md`). `tools/contrast.mjs`: verificación WCAG AA.
 
 ## Rutas
-- Sin hash: portada. `#turno/<nivel>/<duración>` (nivel: `guiado`, `normal`, `experto`; duración: `corto`, `completo`; sin duración = completo), `#checklist`, `#demo`.
+- Sin hash: portada. `#turno/<nivel>/<duración>` (nivel: `guiado`, `normal`, `experto`; duración: `corto`, `completo`; sin duración = completo), `#checklist/<nivel>` (checklist de ronda), `#demo`.
 - ⏭ adelanta al siguiente evento o al fin de la acción en curso; con tickets abiertos solo avisa (en Guiado la sala no empeora).
 
 ## Comandos

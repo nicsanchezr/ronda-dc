@@ -25,7 +25,7 @@ export function createWorld(sched) {
     crac: { 1: { status: 'ok', cap: 55, off: false }, 2: { status: 'ok', cap: 55 } },
     ups: { A: { mode: 'online', load: 38, batt: 100 }, B: { mode: 'online', load: 41, batt: 100 } },
     leak: { active: false, radius: 0, contained: false, reached: false },
-    flags: { n7psu: 'BB', breaker: false, crac1Boost: false, crac2Down: false, cable: false, techInRoom: false, powerCutUntil: -1, crac1OffUntil: -1, aisleOpen: false, tileLifted: false },
+    flags: { n7psu: 'BB', breaker: false, crac1Boost: false, crac2Down: false, cable: false, techInRoom: false, powerCutUntil: -1, crac1OffUntil: -1, aisleOpen: false, tileLifted: false, trash: true },
     sched: sched || Object.fromEntries(INCIDENTS.map((i) => [i.id, i.at])),
     freeze: {}, // evento → true: no empeora (nivel Guiado con su ticket abierto)
     done: {}, // acción en sala → { t, auth }
@@ -253,6 +253,7 @@ export function fieldAvailable(w, fa) {
     case 'door-secure': return r.R02.rearOpen;
     case 'cable-unplug': return f.cable;
     case 'fw01-reboot': return f.cable && !done(w, fa.id);
+    case 'trash-remove': return f.trash;
     default: return false;
   }
 }
@@ -303,6 +304,7 @@ export function doField(w, fa) {
       L('Puerta trasera de R02 asegurada.');
       break;
     case 'cable-unplug': f.cable = false; impact(w, 'Desconectaste el cable de consola: se alteró evidencia de un posible acceso no autorizado.', 'average'); break;
+    case 'trash-remove': f.trash = false; L('Embalaje retirado del pasillo caliente, junto a R06.'); break;
     case 'fw01-reboot': w.down['fw-01'] = w.t + 10; impact(w, 'Reiniciaste fw-01 sin autorización: Retail Andino perdió conectividad 10 minutos y se perdieron registros volátiles.'); break;
     default: break;
   }
@@ -371,6 +373,7 @@ export function inspect(w, kind, id) {
       obs.push({ id: 'obs:r06-pdu', warn: rk.pduB >= 80, text: `Pantallas de las PDU: A ${Math.round(rk.pduA)} % · B ${w.flags.breaker ? 'disparada' : Math.round(rk.pduB) + ' %'}.` });
       if (w.flags.n7psu === 'BB') obs.push({ id: 'obs:r06-psu', warn: true, text: 'k8s-n7 (U23–U24): PSU1 → PDU-B y PSU2 → PDU-B.' });
       obs.push({ id: 'obs:r06-label', text: 'Etiqueta en k8s-n7: «Instalado hoy 07:30 · CHG-1045».' });
+      if (w.flags.trash) obs.push({ id: 'obs:r06-box', warn: true, text: 'Junto a R06, en el pasillo caliente, quedó una caja de cartón con el embalaje del equipo instalado hoy.' });
     }
     if (id === 'R07' && w.flags.techInRoom) obs.push({ id: 'obs:r07-tech', text: 'Técnico de Austral Storage Services (credencial P-0412) reemplazando el disco 3 de stg-02. El equipo sigue encendido.' });
     if (id === 'R02' && rk.rearOpen) obs.push({ id: 'obs:r02-door', warn: true, text: 'Puerta trasera abierta; la cerradura no muestra daños.' });
@@ -401,6 +404,7 @@ export function inspect(w, kind, id) {
       else obs.push({ id: 'obs:crac2-ok', text: 'CRAC-2 operando sin alarmas.' });
     }
     if (n === 1 && w.leak.active) obs.push({ id: 'obs:crac1-tray', warn: true, text: 'La bandeja de condensado de CRAC-1 está llena hasta el borde.' });
+    else if (n === 1 && !w.leak.contained && w.t < (w.sched.E7 ?? Infinity)) obs.push({ id: 'obs:crac1-tray-high', warn: true, text: 'La bandeja de condensado de CRAC-1 está casi llena y el drenaje corre lento.' });
     return { title: id, sub: 'Unidad de climatización de precisión', readings, obs };
   }
   if (kind === 'ups') {
@@ -480,7 +484,7 @@ export function inspect(w, kind, id) {
     return { title: `PDU-${b} · ${rackId}`, sub: tr('pdu.sub'), readings, obs, rack: rackId };
   }
   if (kind === 'acs') {
-    return { title: 'Lector de acceso · Sala A', sub: 'Control de acceso con tarjeta', readings: [['Estado', 'Operando']], obs: [], link: 'accesos' };
+    return { title: 'Lector de acceso · Sala A', sub: 'Control de acceso, detección de humo y extintores junto a la puerta', readings: [['Lector de acceso', 'Operando'], ['VESDA (detección de humo)', 'Normal · sin alarmas'], ['Extintor de CO₂', 'Carga vencida (09/2026)', 'warn']], obs: [{ id: 'obs:fire-ext', warn: true, text: 'El extintor de CO₂ junto a la puerta tiene la carga vencida desde 09/2026.' }, { id: 'obs:vesda-ok', text: 'Panel VESDA en estado normal, sin alarmas ni fallas de flujo.' }], link: 'accesos' };
   }
   return null;
 }
