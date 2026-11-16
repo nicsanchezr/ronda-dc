@@ -2,6 +2,18 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). Versiones según [SemVer](https://semver.org/lang/es/).
 
+## [0.5.1] · 2026-11-16
+
+### Corregido
+- **Salir de la demo con Esc:** en pantalla completa, la primera Esc solo sale de pantalla completa (como hace el navegador) y la demo sigue; una Esc fuera de pantalla completa sale de la demo. La demo no usa `fullscreenchange` para salir.
+- **Salir detiene la demo por completo:** el botón Salir, Esc o volver a la portada cancelan el guion, las esperas, el temporizador del kiosco, los subtítulos y la cámara, y dejan una partida nueva con el reloj detenido. Antes, la demo y los subtítulos podían seguir corriendo debajo de la portada (por ejemplo, si se salía durante el vuelo de entrada).
+- **Tomas de cámara tapadas:** cada paso de la demo tiene una toma explícita (posición, objetivo y encuadre) que se comprueba con raycasting antes de usarla; si está tapada se prueba el ángulo siguiente y, en un rack, la vista de detalle. El encuadre se corre a la derecha para que el objetivo no quede bajo el inspector, y las tomas cercanas ya no quedan dentro de la fila de enfrente (la distancia mínima de la órbita empujaba la cámara).
+
+### Agregado
+- Botón de pantalla completa (⛶) en los controles de la demo.
+- Hoja de contactos de las tomas: `docs/demo-tomas.png` (`node tools/capturas.mjs tomas`), con la captura y el número de paso de cada toma.
+- Pruebas: Esc en pantalla completa, salida completa con Esc y con el botón Salir a mitad de un paso, y línea de visión libre en todas las tomas.
+
 ## [0.5.0] · 2026-11-15
 
 ### Agregado

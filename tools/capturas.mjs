@@ -7,6 +7,8 @@ import gifenc from 'gifenc'; // CommonJS
 const { GIFEncoder, quantize, applyPalette } = gifenc;
 import { PNG } from 'pngjs';
 import fs from 'fs';
+import { PERFECT } from '../src/perfect-run.js';
+import { STEP_SHOTS, SHOT_TYPES } from '../src/demo.js';
 import path from 'path';
 import { pathToFileURL } from 'url';
 
@@ -118,6 +120,44 @@ const JOBS = {
     await p.waitForFunction(() => window.__ronda.demo().caption === 'demo.E3.detail', null, { timeout: 240_000 });
     await idle(p); await p.waitForTimeout(1200);
     await shot(p, 'demo'); await p.close();
+  },
+  /**
+   * Hoja de contactos de las tomas de cámara de la demo (docs/demo-tomas.png): la demo se detiene
+   * en cada toma (?tomas) hasta tomar la captura. Cada cuadro lleva el número de paso del guion.
+   */
+  async tomas() {
+    const p = await page('es', { width: 1280, height: 800 });
+    await p.goto(`${APP}?test&rapido&tomas#demo`);
+    const order = ['E1', 'E3', 'E6', 'E7'];
+    const stepNo = {}; let n = 0;
+    for (const e of order) PERFECT[e].forEach((_, i) => { stepNo[`${e}:${i}`] = ++n; });
+    const shots = [];
+    while (shots.length < Object.keys(STEP_SHOTS).length) {
+      await p.waitForFunction(() => window.__ronda.demo().waitingShot, null, { timeout: 120_000 });
+      const d = await R(p, () => window.__ronda.demo());
+      const key = d.waitingShot, info = d.shots.filter((x) => x.key === key).pop();
+      const s = STEP_SHOTS[key];
+      const img = (await p.screenshot({ type: 'jpeg', quality: 80 })).toString('base64');
+      const how = s.detail ? 'vista de detalle del rack' : info && info.clear ? `ángulo ${info.cand + 1} de ${SHOT_TYPES[s.kind].cands.length} · línea de visión libre` : 'sin ángulo libre → vista de detalle';
+      shots.push({ n: stepNo[key], key, label: `${s.kind} ${s.id}`, how, img, ok: s.detail || (info && info.clear) });
+      console.log('·', stepNo[key], key, how);
+      await R(p, () => window.__ronda.demoResumeShot());
+    }
+    await p.close();
+    const sheet = await browser.newPage({ viewport: { width: 1500, height: 800 } });
+    await sheet.setContent(`<!doctype html><meta charset="utf-8"><style>
+      body{margin:0;padding:24px;background:#e9ebe8;font:15px system-ui,sans-serif;color:#1f2427}
+      h1{font-size:22px;margin:0 0 4px}p{margin:0 0 18px;color:#555e65}
+      .g{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+      figure{margin:0;background:#fff;border:1px solid #cfd4ce;border-radius:8px;overflow:hidden}
+      img{display:block;width:100%}figcaption{padding:8px 10px}b{font-size:17px}
+      .ok{color:#1f6f3f}.bad{color:#b42318}</style>
+      <h1>Ronda DC · tomas de cámara de la demo</h1>
+      <p>Turno corto en Normal. Cada cuadro: número de paso del guion (src/perfect-run.js), evento:índice, objetivo y ángulo usado. Las tomas se comprueban con raycasting antes de usarse.</p>
+      <div class="g">${shots.map((x) => `<figure><img src="data:image/jpeg;base64,${x.img}"><figcaption><b>Paso ${x.n}</b> · ${x.key} · ${x.label}<br><span class="${x.ok ? 'ok' : 'bad'}">${x.how}</span></figcaption></figure>`).join('')}</div>`);
+    await sheet.screenshot({ path: 'docs/demo-tomas.png', fullPage: true });
+    console.log('✓ docs/demo-tomas.png', shots.length, 'tomas');
+    await sheet.close();
   },
   /** GIF corto de la demo: el evento E3 (paneles ciegos) completo, a 2×. */
   async 'demo-gif'() {
