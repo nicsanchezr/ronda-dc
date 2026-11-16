@@ -254,6 +254,16 @@ body[data-level=experto] .obs.w{box-shadow:none}
 #glsearch{width:100%;margin-bottom:10px;background:var(--input);border:1px solid var(--line);color:var(--txt);border-radius:7px;padding:7px 10px;font:inherit}
 .gll{display:grid;gap:6px}.gle{background:var(--panel);border:1px solid var(--line2);border-radius:7px;padding:8px 11px;font-size:13px}.gle b{font:600 15px var(--head)}.gle p{margin:4px 0}
 .gle.focus{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)}
+#tutor{position:absolute;right:60px;bottom:44px;z-index:12;width:330px;max-height:calc(100% - 120px);overflow:auto;background:var(--glass);border:1px solid var(--acc);border-radius:10px;box-shadow:0 12px 32px var(--shadow);padding:10px 12px;font-size:13.5px;--px:12px;--py:0px}
+#tutor .th{display:flex;justify-content:space-between;align-items:center;gap:8px}#tutor .th b{font:600 15px var(--head);letter-spacing:.03em}
+.tsteps{list-style:none;margin:8px 0;padding:0;display:grid;gap:6px}.tsteps li{display:flex;gap:8px;align-items:flex-start;color:var(--mut)}
+.tsteps li.cur{color:var(--txt);font-weight:600}.tsteps li.done{color:var(--good-text)}.tsteps small{display:block;font-weight:400;color:var(--txt);margin-top:2px}
+.tchk{flex:none;display:grid;place-items:center;width:20px;height:20px;border-radius:50%;border:1px solid var(--line);font:600 11px var(--sans)}.tsteps li.done .tchk{background:var(--good);border-color:var(--good);color:var(--acc-ink)}.tsteps li.cur .tchk{border-color:var(--acc);color:var(--acc-text)}
+.thints{margin:6px 0 0;padding-left:16px;display:grid;gap:4px;font-size:13px}
+#coach{position:fixed;z-index:58;background:var(--bg2);border:1px solid var(--acc);border-radius:10px;box-shadow:0 16px 40px var(--shadow);padding:12px 14px;font-size:14px;--px:0px;--py:8px}
+#coach .ch{display:flex;justify-content:space-between;align-items:center;gap:8px}#coach .ch b{font:600 13px var(--head);letter-spacing:.08em;text-transform:uppercase;color:var(--acc-text)}#coach p{margin:8px 0}.cf{display:flex;justify-content:flex-end}
+.coach-target{outline:3px solid var(--acc)!important;outline-offset:3px;border-radius:8px;z-index:31}
+.reflect p{margin:4px 0 8px}.rfb{margin:8px 0 0;font-size:13.5px;min-height:1.2em}
 .escnote{margin-top:6px;padding:6px 8px;border-radius:6px;background:var(--panel2);color:var(--txt)}
 @media (prefers-reduced-motion:reduce){#flash.on{animation:none}}
 /* paneles: entrada y salida con deslizamiento y fundido (nunca de golpe) */
@@ -330,6 +340,7 @@ body[data-level=experto] .obs.w{box-shadow:none}
       <span><i class="cord" style="background:var(--cord-b)"></i><span data-i18n="rackView.cordB">Rama B (UPS-B)</span></span>
     </div>
     <div id="flash" aria-hidden="true"></div>
+    <aside id="tutor" aria-live="polite" hidden></aside>
     <div id="briefing" class="card intro" role="dialog" aria-labelledby="brief-t" hidden>
       <div class="kicker" data-i18n="briefing.kicker">Briefing del turno</div>
       <h2 id="brief-t" data-i18n="intro.title">Tu primer turno como operador de sala de datacenter</h2>
@@ -402,6 +413,7 @@ body[data-level=experto] .obs.w{box-shadow:none}
   </section>
   <footer class="lfoot"><div class="lwrap"><span data-i18n="landing.credits"></span> · <a href="https://github.com/nicsanchezr/ronda-dc/blob/main/LICENSE" data-i18n="landing.license">Código con licencia MIT</a> · <a href="https://github.com/nicsanchezr/ronda-dc" data-i18n="landing.repo">Repositorio en GitHub</a></div></footer>
 </div>
+<div id="coach" role="dialog" aria-live="polite" hidden></div>
 <div id="toasts" aria-live="polite"></div>
 
 <div class="overlay" id="modal" hidden><div class="card" id="modalbox" role="dialog" aria-modal="true"></div></div>

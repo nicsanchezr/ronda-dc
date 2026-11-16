@@ -21,7 +21,7 @@ export async function openGame(page, { level = '', theme } = {}) {
   await page.goto(`${APP}?test#turno${level ? '/' + level : ''}`);
   await expect(page.locator('#briefing')).toBeVisible();
   await page.click('#startbtn');
-  await page.click('#pause');
+  if (level !== 'guiado') await page.click('#pause'); // en Guiado el turno empieza en pausa
   await expect(page.locator('#clockwrap')).toHaveClass(/paused/);
 }
 
@@ -83,7 +83,7 @@ export async function requestAuth(page, kind, id, faId) {
 }
 
 /** Completa y envía el formulario de cierre del ticket abierto. Devuelve el puntaje. */
-export async function closeTicket(page, { cls, prio, acts = [], esc = [], note = '' }) {
+export async function closeTicket(page, { cls, prio, acts = [], esc = [], note = '', reflect }) {
   await page.click('.detail [data-act="resolve"]');
   const f = page.locator('#resolveform');
   await expect(f).toBeVisible();
@@ -92,6 +92,7 @@ export async function closeTicket(page, { cls, prio, acts = [], esc = [], note =
   for (const a of acts) { const i = f.locator(`input[name=act][value=${a}]`); if (!(await i.isDisabled())) await i.check(); }
   for (const e of esc) { const i = f.locator(`input[name=esc][value=${e}]`); if (!(await i.isDisabled())) await i.check(); }
   if (note) await f.locator('textarea[name=note]').fill(note);
+  if (reflect !== undefined) await f.locator('input[name=reflect]').nth(reflect).check();
   await f.locator('button.btn:not(.ghost)').last().click();
   const score = page.locator('#modalbox .score b');
   await expect(score).toBeVisible();

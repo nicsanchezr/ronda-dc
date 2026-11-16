@@ -1,4 +1,4 @@
-import { INCIDENTS, NOISE, ACCESS, CALENDAR, RUNBOOKS, ESCALATIONS, CLASSES, PRIORITIES, SEV, SHIFT, RACKS, CLIENTS, FIELD_ACTIONS, LEVELS, schedFor } from './scenario.js';
+import { INCIDENTS, NOISE, ACCESS, CALENDAR, RUNBOOKS, ESCALATIONS, CLASSES, PRIORITIES, SEV, SHIFT, RACKS, CLIENTS, FIELD_ACTIONS, LEVELS, schedFor, TUTORIAL } from './scenario.js';
 import { createWorld, step, startIncident, applyClose, inspect, rackSeverity, clock, fmt1, TOTAL_DEVICES, rackMaxInlet, fieldAvailable, fieldActionsFor, requestAuth, doField, fieldById } from './sim.js';
 import { scoreTicket as scoreCore, actionStatus, LEVEL_RULES } from './scoring.js';
 import { createScene } from './scene3d.js';
@@ -22,7 +22,7 @@ function freshState(level = 'normal') {
     world: createWorld(schedFor(level)), running: false, speed: 1, mode: 'estado', tab: 'monitoreo',
     tickets: [], active: null, started: new Set(), sel: null, ended: false, modal: false,
     notes: [], lastMinute: -1, seenSys: 0, begun: false,
-    level, seen: {}, seenFirst: {}, act: null, confirm: null, consulta: 'runbooks', glFocus: null,
+    level, seen: {}, seenFirst: {}, act: null, confirm: null, consulta: 'runbooks', glFocus: null, tut: null, tutorHidden: false,
   };
 }
 
@@ -47,7 +47,7 @@ const scene = createScene($('#view3d'), {
 // ---------- Utilidades de estado ------------------------------------------------
 const openTickets = () => S.tickets.filter((t) => t.closedAt == null);
 /** Guiado: sin presión de tiempo. El reloj espera mientras haya un ticket abierto (salvo durante una acción). */
-const guidedHold = () => S.level === 'guiado' && !S.act && openTickets().length > 0;
+const guidedHold = () => S.level === 'guiado' && !S.act && (openTickets().length > 0 || !!(S.tut && S.tut.active));
 const openIncidents = () => openTickets().filter((x) => !x.proactive).map((x) => x.inc);
 function sevMap() { const m = {}; RACKS.forEach((r) => (m[r.id] = rackSeverity(S.world, r.id, openIncidents()))); return m; }
 
@@ -215,6 +215,7 @@ function renderPanel() {
     h = `<form id="noteform" class="noteform"><input id="noteinput" placeholder="${t('panel.notePlaceholder')}" autocomplete="off"><button>${t('panel.noteAdd')}</button></form>` +
       (entries.length ? entries.map((e) => `<div class="row log ${e.kind}"><div class="when">${clock(e.t)}</div><div class="body">${e.kind === 'impacto' ? `<b>${t('panel.logImpact')}</b> ` : e.kind === 'nota' ? `<b>${t('panel.logNote')}</b> ` : ''}${esc(e.text)}</div></div>`).join('') : `<p class="empty">${t('panel.logEmpty')}</p>`);
   }
+  renderTutor();
   const pane = $('#pane');
   const keep = pane.scrollTop;
   const focusNote = document.activeElement && document.activeElement.id === 'noteinput';
@@ -307,6 +308,88 @@ function renderRackUI(id) {
   renderInspector();
 }
 
+// ---------- Tutor del nivel Guiado -----------------------------------------------------------
+/** ¿Se cumple la condición de un paso del tutor? (ver «guided» en scenario.js) */
+function condDone(tk, c) {
+  const w = S.world, since = tk.openedAt;
+  const seenSince = (k, t0) => (S.seen[k] ?? -Infinity) >= t0;
+  if (c.open && tk.ackAt == null) return false;
+  if (c.tab && !seenSince('tab:' + c.tab, since)) return false;
+  if (c.ev && !c.ev.every((id) => tk.evidence.some((e) => e.id === id))) return false;
+  if (c.inspect) { const t0 = c.after ? (w.done[c.after] ? w.done[c.after].t : Infinity) : since; if (!c.inspect.some((k) => seenSince('insp:' + k, t0))) return false; }
+  if (c.field) { const d = w.done[c.field]; if (!d || (c.authorized && !d.auth)) return false; }
+  if (c.auth && !w.auth[c.auth]) return false;
+  if (c.note && !hasNoteFor(tk)) return false;
+  if (c.close && tk.closedAt == null) return false;
+  return true;
+}
+function tutorTicket() {
+  const open = S.tickets.filter((x) => x.closedAt == null && x.inc.guided);
+  return open.find((x) => x.id === S.active) || open[0] || null;
+}
+function renderTutor() {
+  const box = $('#tutor'); if (!box) return;
+  const tk = S && S.level === 'guiado' && S.begun && !(S.tut && S.tut.active) ? tutorTicket() : null;
+  if (!tk) { panelHide(box); return; }
+  const steps = tk.inc.guided.steps;
+  tk.tutorDone = tk.tutorDone || [];
+  steps.forEach((st, i) => { if (!tk.tutorDone[i] && condDone(tk, st.done)) tk.tutorDone[i] = true; });
+  const cur = steps.findIndex((_, i) => !tk.tutorDone[i]);
+  const R = LEVEL_RULES[S.level];
+  const n = tk.hints || 0, max = Math.min(R.hints, (tk.inc.hints || []).length);
+  const html = `<div class="th"><b>${t('guided.tutor', { id: tk.id })}</b><button class="link" data-act="tutor-toggle">${t(S.tutorHidden ? 'guided.show' : 'guided.hide')}</button></div>
+    ${S.tutorHidden ? '' : `<div class="tsub muted small">${esc(tk.inc.title)}</div>
+    <ol class="tsteps">${steps.map((st, i) => `<li class="${tk.tutorDone[i] ? 'done' : i === cur ? 'cur' : ''}"><span class="tchk" aria-hidden="true">${tk.tutorDone[i] ? '✓' : i + 1}</span><span>${esc(st.label)}${i === cur ? `<small>${gl(st.text)}</small>` : ''}</span></li>`).join('')}</ol>
+    ${n < max ? `<button class="link" data-act="hint" data-tk="${tk.id}">${t('hints.ask', { n, max })}</button>` : ''}
+    ${n ? `<ul class="thints">${tk.inc.hints.slice(0, n).map((h, i) => `<li><b>${t('hints.n', { n: i + 1 })}</b> ${gl(h)}</li>`).join('')}</ul>` : ''}`}`;
+  panelShow(box, 'tutor');
+  if (box._html !== html) { box._html = html; box.innerHTML = html; }
+}
+
+// ---------- Tutorial de la interfaz (Guiado, antes del primer evento) -----------------------
+function renderCoach() {
+  const box = $('#coach');
+  document.querySelectorAll('.coach-target').forEach((el) => el.classList.remove('coach-target'));
+  if (!S.tut || !S.tut.active) { panelHide(box); return; }
+  const st = TUTORIAL[S.tut.i];
+  const target = $(st.target);
+  if (target) target.classList.add('coach-target');
+  const last = st.until === 'done';
+  const btn = st.until === 'next' || last ? `<button class="btn" data-act="coach-next">${t(last ? 'guided.begin' : 'guided.next')}</button>` : `<span class="muted small">${t('guided.waiting')}</span>`;
+  box.innerHTML = `<div class="ch"><b>${t('guided.tutorial', { n: S.tut.i + 1, m: TUTORIAL.length })}</b><button class="link" data-act="coach-skip">${t('guided.skip')}</button></div><p>${gl(st.text)}</p><div class="cf">${btn}</div>`;
+  panelShow(box, 'coach' + S.tut.i);
+  // ubicación junto al elemento señalado
+  const r = target ? target.getBoundingClientRect() : { left: 20, bottom: 80, top: 80, right: 20, width: 0 };
+  const w = Math.min(340, window.innerWidth - 24);
+  box.style.width = w + 'px';
+  let left = Math.max(12, Math.min(window.innerWidth - w - 12, r.left));
+  let top = r.bottom + 10;
+  if (top + box.offsetHeight > window.innerHeight - 12) top = Math.max(12, r.top - box.offsetHeight - 10);
+  if (st.target === '#stage') { left = r.left + r.width / 2 - w / 2; top = r.top + 70; }
+  else if (r.height > window.innerHeight * 0.45 && r.right + w + 24 < window.innerWidth) { left = r.right + 12; top = Math.max(12, r.top); } // elemento alto: a su derecha
+  box.style.left = left + 'px'; box.style.top = top + 'px';
+}
+function coachNext() {
+  if (!S.tut || !S.tut.active) return;
+  if (TUTORIAL[S.tut.i].until === 'done') { endTutorial(); return; }
+  S.tut.i++;
+  renderCoach();
+}
+function endTutorial() {
+  if (!S.tut) return;
+  S.tut.active = false;
+  renderCoach(); renderTutor(); updateSpeedUI();
+  S.world.log.push({ t: S.world.t, kind: 'sala', text: t('guided.tutorialDone') });
+}
+/** Avanza el tutorial cuando el estudiante hace lo que se pide. */
+setInterval(() => {
+  if (!S || !S.tut || !S.tut.active) return;
+  const st = TUTORIAL[S.tut.i];
+  const ok = (st.until === 'run' && S.running) || (st.until === 'rack' && S.sel && S.sel.kind === 'rack') || (st.until === 'glossary' && $('#gltip') && !$('#gltip').hidden);
+  if (ok) { S.tut.i++; renderCoach(); }
+}, 250);
+window.addEventListener('resize', () => { if (S && S.tut && S.tut.active) renderCoach(); });
+
 // ---------- Acciones en sala --------------------------------------------------------------
 function fieldActionsHtml() {
   if (!S.sel) return '';
@@ -383,6 +466,7 @@ function renderInspector() {
     ${S.sel.kind === 'rack' && scene.detail !== S.sel.id ? `<div class="ibtns"><button class="btn ghost" data-act="rack-detail" data-rack="${esc(S.sel.id)}">${t('inspector.viewRack')}</button></div>` : ''}
     ${d.rack ? `<div class="ibtns"><button class="btn ghost" data-act="insp-rack" data-rack="${esc(d.rack)}">${t('inspector.rackCard', { id: d.rack })}</button>${scene.detail !== d.rack ? `<button class="btn ghost" data-act="rack-detail" data-rack="${esc(d.rack)}">${t('inspector.viewRackOf', { id: d.rack })}</button>` : ''}</div>` : ''}
   </div>`;
+  renderTutor();
   if (box._html === html) return;
   box._html = html; box.innerHTML = html;
   if (box.querySelector('.ib')) box.querySelector('.ib').scrollTop = keep;
@@ -406,7 +490,8 @@ function openResolve(tkId) {
   const tk = S.tickets.find((x) => x.id === tkId);
   const inc = tk.inc, w = S.world;
   S.modal = true;
-  const acts = shuffleSeeded(inc.actions, inc.at + 7);
+  const G = S.level === 'guiado' && inc.guided ? inc.guided : null;
+  const acts = shuffleSeeded(G ? inc.actions.filter((a) => G.form.actions.includes(a.id)) : inc.actions, inc.at + 7);
   const ctx = actionCtx(tk);
   const escReq = !!w.escReq[inc.id];
   const actRow = (a) => {
@@ -428,13 +513,21 @@ function openResolve(tkId) {
     <fieldset><legend>${t('resolve.q1')}</legend><div class="opts">${CLASSES.map((c) => `<label class="opt"><input type="radio" name="cls" value="${c.id}" required><span><b>${c.label}</b><small>${c.hint}</small></span></label>`).join('')}</div></fieldset>
     <fieldset><legend>${t('resolve.q2')}</legend><div class="opts four">${PRIORITIES.map((p) => `<label class="opt"><input type="radio" name="prio" value="${p.id}" required><span><b>${p.label}</b></span></label>`).join('')}</div></fieldset>
     <fieldset><legend>${t('resolve.q3')} <small>${t('resolve.q3hintField')}</small></legend><div class="opts col">${acts.map(actRow).join('')}</div></fieldset>
-    <fieldset><legend>${t('resolve.q4')}</legend><div class="opts col">${ESCALATIONS.map(escRow).join('')}</div></fieldset>
+    <fieldset><legend>${t('resolve.q4')}</legend><div class="opts col">${ESCALATIONS.filter((e) => !G || G.form.esc.includes(e.id) || (escReq && e.id === 'cliente')).map(escRow).join('')}</div></fieldset>
     <fieldset><legend>${t('resolve.q5')} <small>${t('resolve.q5hintNote')}</small></legend><textarea name="note" rows="2" placeholder="${t('resolve.notePh')}"></textarea></fieldset>
+    ${G ? `<fieldset class="reflect"><legend>${t('guided.reflect')}</legend><p><b>${esc(G.reflect.q)}</b></p><div class="opts col">${G.reflect.options.map((o, i) => `<label class="opt"><input type="radio" name="reflect" value="${i}"><span>${esc(o.t)}</span></label>`).join('')}</div><p class="rfb" id="rfb" role="status"></p></fieldset>` : ''}
     <div class="err" id="formerr"></div>
-    <div class="mf"><button type="button" class="btn ghost" data-act="cancel-modal">${t('resolve.back')}</button><button class="btn">${t('resolve.submit')}</button></div>
+    <div class="mf"><button type="button" class="btn ghost" data-act="cancel-modal">${t('resolve.back')}</button><button class="btn" id="submitbtn" ${G ? 'disabled' : ''}>${t('resolve.submit')}</button></div>
   </form>`;
   const f = $('#resolveform');
   f.addEventListener('change', (e) => {
+    if (e.target.name === 'reflect' && G) {
+      const o = G.reflect.options[Number(e.target.value)];
+      $('#rfb').textContent = (o.ok ? '✓ ' : '') + o.fb;
+      $('#rfb').className = 'rfb ' + (o.ok ? 'good' : 'warn');
+      tk.reflect = { q: G.reflect.q, a: o.t, ok: !!o.ok };
+      $('#submitbtn').disabled = false;
+    }
     if (e.target.name === 'esc') {
       const nadie = f.querySelector('input[name=esc][value=nadie]');
       if (e.target.value === 'nadie' && e.target.checked) f.querySelectorAll('input[name=esc]:not(:disabled)').forEach((i) => { if (i !== nadie) i.checked = false; });
@@ -448,6 +541,7 @@ function openResolve(tkId) {
     const ans = { cls: fd.get('cls'), prio: fd.get('prio'), actions: checked('act'), esc: checked('esc'), note: (fd.get('note') || '').trim() };
     if (!ans.actions.length) { $('#formerr').textContent = t('resolve.errAction'); return; }
     if (!ans.esc.length) { $('#formerr').textContent = t('resolve.errEsc'); return; }
+    if (G && !tk.reflect) { $('#formerr').textContent = t('guided.errReflect'); return; }
     closeTicket(tk, ans);
   });
 }
@@ -491,6 +585,7 @@ function showReview(tk) {
   $('#modalbox').innerHTML = `<div class="mh"><div><div class="muted small">${t('review.title', { id: tk.id })}</div><h2>${esc(inc.title)}</h2></div><button type="button" class="x" data-act="close-modal" aria-label="${t('review.close')}">×</button></div>
     <div class="score ${r.total >= 80 ? 'good' : r.total >= 50 ? 'mid' : 'bad'}"><b>${r.total}</b><span>/ 100</span>${r.bonus ? `<span class="bonus">+${r.bonus} ${t('proactive.bonus')}</span>` : ''}${r.critical ? `<em>${t('review.critical')}</em>` : ''}</div>
     ${tk.proactive ? `<p class="muted small">${t('proactive.review')}</p>` : ''}
+    ${tk.reflect ? `<div class="why"><b>${t('guided.reflect')}</b><p>${esc(tk.reflect.q)}</p><p>${esc(tk.reflect.a)} <span class="${tk.reflect.ok ? 'good' : 'warn'}">${t(tk.reflect.ok ? 'guided.reflectOk' : 'guided.reflectNo')}</span></p></div>` : ''}
     <p class="muted small">${t('levels.reviewLine', { level: t('levels.' + r.level), hints: r.hints })}${r.hintPen ? ' · ' + t('hints.penalty', { n: r.hintPen }) : ''}</p>
     <table class="rev"><tr><th>${t('review.colDim')}</th><th>${t('review.colYours')}</th><th>${t('review.colExp')}</th><th>${t('review.colPts')}</th></tr>
     ${r.parts.map((p) => `<tr><td>${p.dim}</td><td>${p.items ? actionItemsHtml(p) : esc(p.yours || '—')}${p.crit && p.crit.length ? `<div class="bad small">${t('review.critLabel')} ${esc(p.crit.join(' · '))}</div>` : ''}${p.wrong && p.wrong.length ? `<div class="warn small">${t('review.wrongLabel')} ${esc(p.wrong.join(' · '))}</div>` : ''}${p.missing && p.missing.length ? `<div class="muted small">${t('review.missingLabel')} ${esc(p.missing.join(' · '))}</div>` : ''}${p.notes && p.notes.length ? p.notes.map((n) => `<div class="escnote small">${esc(n)}</div>`).join('') : ''}</td><td>${esc(p.exp)}</td><td class="mono">${p.pts}/${p.max}</td></tr>`).join('')}
@@ -579,6 +674,7 @@ function report() {
     if (x.evidence.length) L.push(t('report.evidence', { list: x.evidence.map((e) => e.label).join(' | ') }));
     if (x.answer.note) L.push(t('report.note', { note: x.answer.note }));
     if (x.hints) L.push(t('report.hints', { n: x.hints }));
+    if (x.reflect) L.push(t('report.reflect', { q: x.reflect.q, a: x.reflect.a, ok: t(x.reflect.ok ? 'guided.reflectOk' : 'guided.reflectNo') }));
     L.push(t('report.total', { total: x.result.total }) + (x.result.bonus ? ` (+${x.result.bonus})` : ''), '', `> ${x.inc.why}`, '');
   }
   if (m.impacts.length) { L.push(t('report.impactsH'), ''); m.impacts.forEach((i) => L.push(`- ${clock(i.t)} · ${i.text}`)); L.push(''); }
@@ -614,6 +710,9 @@ document.addEventListener('click', async (e) => {
   else if (act === 'tab') { S.tab = b.dataset.tab; renderPanel(); }
   else if (b.dataset.cons) { S.consulta = b.dataset.cons; renderPanel(); }
   else if (act === 'hint') { const tk = S.tickets.find((x) => x.id === b.dataset.tk); const R = LEVEL_RULES[S.level]; if (tk && (tk.hints || 0) < Math.min(R.hints, tk.inc.hints.length)) { tk.hints = (tk.hints || 0) + 1; S.world.log.push({ t: S.world.t, kind: 'sala', text: t('hints.log', { id: tk.id, n: tk.hints }) }); renderPanel(); } }
+  else if (act === 'coach-next') coachNext();
+  else if (act === 'coach-skip') endTutorial();
+  else if (act === 'tutor-toggle') { S.tutorHidden = !S.tutorHidden; renderTutor(); }
   else if (act === 'fa') { if (!S.act) { S.confirm = b.dataset.fa; renderInspector(); } }
   else if (act === 'fa-cancel') { S.confirm = null; renderInspector(); }
   else if (act === 'fa-ok') startField(b.dataset.fa);
@@ -695,7 +794,9 @@ function boot(level = (S && S.level) || 'normal') {
 function start() {
   panelHide($('#briefing'));
   S.begun = true;
-  S.running = true; lastTs = performance.now(); updateSpeedUI();
+  if (S.level === 'guiado') { S.tut = { i: 0, active: true }; setTimeout(renderCoach, 50); }
+  // en Guiado el turno empieza en pausa: el estudiante pulsa ▶ en el tutorial
+  S.running = S.level !== 'guiado'; lastTs = performance.now(); updateSpeedUI();
   S.world.log.push({ t: 0, kind: 'sala', text: t('sim.shiftStart') });
   advance(0.01); tickUI();
 }
@@ -750,6 +851,7 @@ function showLanding(soon) {
   panelHide($('#briefing'));
   $('#end').hidden = true;
   document.body.classList.add('is-landing');
+  panelHide($('#coach')); panelHide($('#tutor'));
   $('.lset').appendChild($('.settings'));
   scene.setLanding(true);
   $('#turnobtn').textContent = t(S.begun && !S.ended ? 'landing.turnoContinue' : 'landing.turnoStart');
@@ -772,6 +874,7 @@ function enterTurno() {
   for (const el of [$('header'), $('aside')]) { el.classList.remove('entering'); void el.offsetWidth; el.classList.add('entering'); el.addEventListener('animationend', () => el.classList.remove('entering'), { once: true }); }
   scene.setLanding(false, () => {
     if (!S.begun) panelShow($('#briefing'), 'brief');
+    else if (S.tut && S.tut.active) renderCoach();
     else if (S.ended) $('#end').hidden = false;
     else { S.running = true; lastTs = performance.now(); updateSpeedUI(); }
   });
