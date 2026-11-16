@@ -376,7 +376,7 @@ export function inspect(w, kind, id) {
     if (id === 'R04' && rk.sensorLoose) obs.push(O('obs:r04-sensor', 'r04Sensor', null, true));
     if (id === 'R08' && rk.gap) {
       obs.push(O('obs:r08-blank', 'r08Blank', null, true));
-      if (t > 40) obs.push(O('obs:r08-recirc', 'r08Recirc', null, true));
+      if (t > (w.sched.E3 ?? 70) - 30) obs.push(O('obs:r08-recirc', 'r08Recirc', null, true)); // desde que empieza la recirculación
     }
     if (id === 'R06') {
       obs.push(r06PduObs(w));

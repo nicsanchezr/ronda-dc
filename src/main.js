@@ -6,6 +6,7 @@ import { t, applyI18n, setLang, lang, onLangChange, msg, tm, cat, lcf, fmtNum, f
 import { initThemes, themes, getState, setTheme, setMode, onThemeChange } from './themes/index.js';
 import { statusIcon } from './status.js';
 import { gl, glossary, initGlossaryTip } from './glossary.js';
+import { createDemo } from './demo.js';
 
 initThemes(); // variables CSS del tema antes de crear la escena
 
@@ -272,10 +273,11 @@ function openTicket(id) {
   const tk = S.tickets.find((t) => t.id === id); if (!tk) return;
   if (tk.ackAt == null) tk.ackAt = S.world.t;
   S.active = id; S.tab = 'tickets';
-  if (tk.inc.rack) { scene.focus('rack', tk.inc.rack); }
-  else if (tk.inc.object === 'CRAC-2') scene.focus('crac', 'CRAC-2');
-  else if (tk.inc.object === 'UPS-A') scene.focus('ups', 'UPS-A');
-  else if (tk.inc.object === 'LEAK') scene.focus('leak', 'LEAK-Z3');
+  const ms = S.demo && !DEMO_FAST ? 1600 : 700; // la Demo vuela más lento para que se pueda seguir
+  if (tk.inc.rack) { scene.focus('rack', tk.inc.rack, ms); }
+  else if (tk.inc.object === 'CRAC-2') scene.focus('crac', 'CRAC-2', ms);
+  else if (tk.inc.object === 'UPS-A') scene.focus('ups', 'UPS-A', ms);
+  else if (tk.inc.object === 'LEAK') scene.focus('leak', 'LEAK-Z3', ms);
   renderPanel(); $('#pane').scrollTop = 0;
 }
 
@@ -1014,7 +1016,7 @@ document.addEventListener('click', (e) => { if (!$('#helppop').hidden && !e.targ
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#helppop').hidden) { toggleHelp(false); $('#helpbtn').focus(); } });
 
 // ---------- Portada y rutas por hash (#turno, #checklist, #demo) ------------------------------
-const SOON = ['demo'];
+const SOON = []; // modos de la portada aún no disponibles (muestran un aviso)
 function renderLastRun() {
   const last = loadLastRun();
   $('#lastrun').textContent = last ? t('landing.lastRun', { pts: last.pts, max: last.max, date: fmtDate(last.fecha) }) : t('landing.lastNone');
@@ -1039,15 +1041,20 @@ function showLanding(soon) {
   panelShow($('#landing'), 'landing');
   if (soon) $(`[data-modecard="${soon}"]`).scrollIntoView({ block: 'center' });
 }
-function enterTurno() {
-  if (!document.body.classList.contains('is-landing')) return;
-  if (S.mode2 === 'ronda') { boot(S.level, S.duration); }
-  toggleSettings(false);
+/** Sale de la portada: la cámara vuela a la sala mientras aparecen la cabecera y el panel. */
+function enterRoom(done) {
+  toggleSettings(false); toggleHelp(false);
+  if (!document.body.classList.contains('is-landing')) { if (done) done(); return; }
   panelHide($('#landing'));
   document.body.classList.remove('is-landing');
   $('header').appendChild($('.settings'));
   for (const el of [$('header'), $('aside')]) { el.classList.remove('entering'); void el.offsetWidth; el.classList.add('entering'); el.addEventListener('animationend', () => el.classList.remove('entering'), { once: true }); }
-  scene.setLanding(false, () => {
+  scene.setLanding(false, done);
+}
+function enterTurno() {
+  if (!document.body.classList.contains('is-landing')) return;
+  if (S.mode2 === 'ronda') { boot(S.level, S.duration); }
+  enterRoom(() => {
     if (!S.begun) { setBriefingLead(S.duration); panelShow($('#briefing'), 'brief'); }
     else if (S.tut && S.tut.active) renderCoach();
     else if (S.ended) $('#end').hidden = false;
@@ -1074,6 +1081,12 @@ document.querySelectorAll('[data-level]').forEach((b) => b.addEventListener('cli
 function route() {
   const h = location.hash.replace(/^#\/?/, '');
   const [r0, r1, r2] = h.split('/');
+  if (r0 === 'demo') {
+    const mode = r1 === 'kiosco' ? 'kiosco' : r1 === 'grabar' ? 'grabar' : '';
+    if (!(demo.active && demo.mode === mode)) demo.start(mode);
+    return;
+  }
+  if (demo.active) { demo.stop(); boot(chosenLevel(), 'completo'); showLanding(null); } // al salir de la Demo: partida nueva desde la portada
   if (r0 === 'checklist') {
     const lv = LEVELS.some((l) => l.id === r1) ? r1 : 'normal';
     enterChecklist(lv);
@@ -1088,6 +1101,36 @@ function route() {
   else showLanding(SOON.includes(h) ? h : null);
 }
 
+// ---------- Modo Demo (src/demo.js) --------------------------------------------------------------
+const DEMO_FAST = /[?&]test\b/.test(location.search) && /[?&]rapido\b/.test(location.search); // solo pruebas
+const demo = createDemo({
+  S: () => S,
+  scene,
+  fast: DEMO_FAST,
+  boot(level, duration) {
+    $('#modal').hidden = true; $('#end').hidden = true; panelHide($('#briefing'));
+    boot(level, duration);
+    S.demo = true;
+  },
+  enterRoom,
+  showLanding: () => showLanding(null),
+  start() { start(); S.running = false; updateSpeedUI(); },
+  select(kind, id) { S.sel = { kind, id }; scene.select(kind, id); renderInspector(); },
+  focus: (kind, id, ms) => scene.focus(kind, id, ms),
+  openRackView: (id) => openRackView(id),
+  exitRack: () => scene.exitRack(),
+  advance(min) { advance(min); tickUI(); },
+  finishAct() { if (S.act) skipToNext(); },
+  resetClock() { lastTs = performance.now(); },
+  takeover(mode) {
+    S.demo = false;
+    if (mode !== 'kiosco') history.replaceState(null, '', '#turno/normal/corto');
+    if (!S.ended && !S.modal) { S.running = true; lastTs = performance.now(); }
+    updateSpeedUI(); renderPanel();
+  },
+  stop() { location.hash = ''; },
+});
+
 // ---------- API para pruebas automáticas (solo con ?test en la URL) -------------------------
 if (/[?&]test\b/.test(location.search)) {
   window.__ronda = {
@@ -1095,6 +1138,8 @@ if (/[?&]test\b/.test(location.search)) {
     select(kind, id) { S.sel = { kind, id }; renderInspector(); },
     rondaReport: () => rondaReport(),
     report: () => report(),
+    demo: () => demo.state(),
+    demoSpeed: (v) => demo.setSpeed(v),
     state() {
       const w = S.world;
       return {
@@ -1142,7 +1187,7 @@ function relabel() {
   if (S.tut && S.tut.active) renderCoach();
   if (!$('#end').hidden) { if (S.mode2 === 'ronda' && S.ronda && S.ronda.done) renderRondaEnd(); else if (S.ended) renderEnd(); }
   if (S.reviewTk && !$('#modal').hidden && !$('#resolveform')) showReview(S.tickets.find((x) => x.id === S.reviewTk));
-  if (typeof demoRelabel === 'function') demoRelabel();
+  demo.relabel();
 }
 document.addEventListener('click', (e) => { const b = e.target.closest('[data-lang]'); if (b && b.dataset.lang !== lang) setLang(b.dataset.lang); });
 onLangChange(relabel);

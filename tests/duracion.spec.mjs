@@ -1,6 +1,6 @@
 // Duración de las partidas y botón ⏭.
 import { test, expect } from '@playwright/test';
-import { openGame, stepTo, state, inspect, trackErrors } from './helpers.mjs';
+import { openGame, stepTo, state, inspect, trackErrors, playPerfect } from './helpers.mjs';
 
 test('turno corto: 4 eventos (E1, E3, E6, E7) y fin a las 10:30', async ({ page }) => {
   const errors = trackErrors(page);
@@ -13,6 +13,17 @@ test('turno corto: 4 eventos (E1, E3, E6, E7) y fin a las 10:30', async ({ page 
   expect(s.ended).toBe(true);
   expect(s.tickets.map((x) => x.inc)).toEqual(['E1', 'E3', 'E6', 'E7']);
   await expect(page.locator('#endbox .kpi').first()).toContainText('de 400 pts');
+  expect(errors).toEqual([]);
+});
+
+test('turno corto perfecto: 400 de 400 (la recirculación de R08 se ve aunque E3 llegue a las 08:35)', async ({ page }) => {
+  const errors = trackErrors(page);
+  await openGame(page, { duration: 'corto' });
+  const scores = await playPerfect(page);
+  expect(scores).toEqual({ E1: 100, E3: 100, E6: 100, E7: 100 });
+  await stepTo(page, 151);
+  expect((await state(page)).impacts).toEqual([]);
+  await expect(page.locator('#endbox .kpi').first()).toContainText('400');
   expect(errors).toEqual([]);
 });
 

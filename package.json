@@ -5,6 +5,7 @@
   "scripts": {
     "build": "node build.mjs",
     "contrast": "node tools/contrast.mjs",
+    "capturas": "node build.mjs && node tools/capturas.mjs",
     "test": "node build.mjs && playwright test"
   },
   "keywords": [],
@@ -22,6 +23,8 @@
   "private": true,
   "type": "module",
   "devDependencies": {
-    "@playwright/test": "^1.64.1"
+    "@playwright/test": "^1.64.1",
+    "gifenc": "^1.0.3",
+    "pngjs": "^7.0.0"
   }
 }

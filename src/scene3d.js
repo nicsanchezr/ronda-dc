@@ -380,16 +380,17 @@ export function createScene(container, handlers) {
     if (detail) { exitRack(() => flyTo(v[0].clone(), v[1].clone())); return; }
     flyTo(v[0].clone(), v[1].clone());
   }
-  function focus(kind, id) {
+  /** Vuela hacia un objeto de la sala (ms: duración del vuelo; la Demo usa vuelos más lentos). */
+  function focus(kind, id, ms = 700) {
     if (busy) return;
     if (detail && kind === 'rack' && id === detail) { RV.select(null); return; }
-    if (detail) { exitRack(() => focus(kind, id)); return; }
+    if (detail) { exitRack(() => focus(kind, id, ms)); return; }
     const o = objectFor(kind, id); if (!o) return;
     const box = new THREE.Box3().setFromObject(o); const c = box.getCenter(new THREE.Vector3());
     let off;
     if (kind === 'rack') { const row = RACKS.find((r) => r.id === id).row; off = new THREE.Vector3(1.3, 1.9, row === 'A' ? 1.8 : -1.8); }
     else off = new THREE.Vector3(2.2, 1.6, c.z < 0 ? 2.6 : -2.6);
-    flyTo(c.clone().add(off), c);
+    flyTo(c.clone().add(off), c, reduceMotion.matches ? 0 : ms);
     select(kind, id);
   }
 

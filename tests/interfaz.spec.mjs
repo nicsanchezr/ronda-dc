@@ -31,9 +31,9 @@ test('portada → turno, cambio de tema y transiciones sin errores', async ({ pa
   expect(errors).toEqual([]);
 });
 
-test('rutas por hash: #demo muestra el aviso y #turno abre el briefing', async ({ page }) => {
+test('rutas por hash: #demo inicia la demo y #turno abre el briefing', async ({ page }) => {
   await page.goto(`${APP}?test#demo`);
-  await expect(page.locator('#soonnote')).toBeVisible();
+  await expect(page.locator('#demosub')).toBeVisible();
   await page.goto(`${APP}?test#turno`);
   await expect(page.locator('#briefing')).toBeVisible();
 });
