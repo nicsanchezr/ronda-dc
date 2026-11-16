@@ -27,6 +27,7 @@ export function createWorld(sched) {
     leak: { active: false, radius: 0, contained: false, reached: false },
     flags: { n7psu: 'BB', breaker: false, crac1Boost: false, crac2Down: false, cable: false, techInRoom: false, powerCutUntil: -1, crac1OffUntil: -1, aisleOpen: false, tileLifted: false },
     sched: sched || Object.fromEntries(INCIDENTS.map((i) => [i.id, i.at])),
+    freeze: {}, // evento → true: no empeora (nivel Guiado con su ticket abierto)
     done: {}, // acción en sala → { t, auth }
     auth: {}, // acción restringida → { req, at, grant }
     authEvents: [], // respuestas del cliente pendientes de mostrar
@@ -95,13 +96,14 @@ export function step(w, dt) {
 
   // E3 paneles ciegos faltantes en R08 → recirculación
   const r8 = w.racks.R08;
-  if (r8.gap && t > 40) r8.top = Math.min(7, 0.12 * (t - 40));
+  if (r8.gap && t > 40 && !w.freeze.E3) r8.top = Math.min(7, Math.max(r8.top, 0.12 * (t - 40)));
   else if (!r8.gap && r8.top > 0) r8.top = Math.max(0, r8.top - 0.3 * dt);
 
   // E4 carga de PDU-B en R06
   const r6 = w.racks.R06;
-  if (w.flags.n7psu === 'BB' && !w.flags.breaker) {
-    r6.pduB = t < 110 ? 77 + 0.06 * t : 84 + 0.17 * (t - 110);
+  if (w.flags.n7psu === 'BB' && !w.flags.breaker && !w.freeze.E4) {
+    const e4 = w.sched.E4;
+    r6.pduB = Math.max(r6.pduB, t < e4 ? 77 + 0.06 * t * (110 / e4) : 84 + 0.17 * (t - e4));
     if (r6.pduB >= 96) {
       w.flags.breaker = true; r6.pduB = 0; r6.pduA = 54;
       w.down['k8s-n7'] = Infinity;
@@ -122,7 +124,7 @@ export function step(w, dt) {
   for (const r of Object.keys(w.racks)) {
     const rk = w.racks[r];
     let rate = 0;
-    if (w.flags.crac2Down) rate += ROW_B.includes(r) ? 0.22 : 0.05;
+    if (w.flags.crac2Down && !w.freeze.E6) rate += ROW_B.includes(r) ? 0.22 : 0.05;
     if (crac1Off) rate += ROW_B.includes(r) ? 0.05 : 0.22;
     if (rate > 0 && w.flags.crac1Boost && !crac1Off) rate *= 0.45;
     if (rate > 0) rk.temp += rate * dt;
@@ -142,8 +144,8 @@ export function step(w, dt) {
   // E7 fuga
   const lk = w.leak;
   if (lk.active) {
-    if (!lk.contained) lk.radius = Math.min(1.2, 0.18 + 0.025 * (t - w.sched.E7));
-    if (!lk.contained && !lk.reached && t >= w.sched.E7 + 40) {
+    if (!lk.contained && !w.freeze.E7) lk.radius = Math.min(1.2, lk.radius + 0.025 * dt);
+    if (!lk.contained && !lk.reached && lk.radius >= 0.18 + 0.025 * 40) {
       lk.reached = true;
       impact(w, 'El agua alcanzó la canalización eléctrica bajo el piso técnico.', 'disaster');
       sys(w, 'disaster', 'LEAK-Z3', 'Líquido en contacto con la canalización eléctrica · Zona 3');

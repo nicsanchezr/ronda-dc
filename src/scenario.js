@@ -72,6 +72,17 @@ export const PRIORITIES = [
   { id: 'P4', label: 'P4 · Baja', ack: 60, res: 180 },
 ];
 
+// Niveles del modo Turno. sched: cambios de horario respecto del escenario (minutos desde las 08:00).
+export const LEVELS = [
+  { id: 'guiado', sched: {} },
+  { id: 'normal', sched: {} },
+  { id: 'experto', sched: { E6: 185, E8: 340 } }, // CRAC-2 falla durante la autoprueba de UPS-A; la puerta de R02, con la fuga activa
+];
+export const schedFor = (level) => {
+  const L = LEVELS.find((l) => l.id === level) || LEVELS[1];
+  return Object.fromEntries(INCIDENTS.map((i) => [i.id, L.sched[i.id] ?? i.at]));
+};
+
 // Calendario de cambios y mantenimientos del día
 export const CALENDAR = [
   { id: 'CHG-1042', at: '08:00–10:00', title: 'Reemplazo de disco 3 en stg-02 (R07)', who: 'Austral Storage Services · técnico en sitio', client: 'logistica', state: 'Aprobado', detail: 'Cambio de disco en caliente (RAID 6). No requiere apagar el equipo. Ingreso de un técnico, acompañado.' },
@@ -212,6 +223,11 @@ export const INCIDENTS = [
     evidence: ['cal:CHG-1042', 'acc:acc-0805'],
     why: 'El ingreso coincide con CHG-1042, aprobado para hoy de 08:00 a 10:00 sobre stg-02 (R07). Es trabajo autorizado: se verifica, se acompaña y se registra. El cambio de disco es en caliente; el operador no apaga ni manipula equipos del cliente.',
     ref: 'RB-06 · Gestión de cambios (ITIL / ISO/IEC 20000-1)',
+    hints: [
+      "Un proveedor en la sala no siempre es un problema. ¿Qué documento autoriza que alguien trabaje en la sala?",
+      "Busca en la pestaña Cambios un trabajo de hoy sobre stg-02, en R07, y compáralo con el registro de Accesos.",
+      "CHG-1042 está aprobado de 08:00 a 10:00: es trabajo autorizado. Se verifica, se acompaña al técnico en R07 y se registra; no se escala ni se apagan equipos.",
+    ],
   },
   {
     id: 'E2', at: 35, rack: 'R04',
@@ -228,6 +244,11 @@ export const INCIDENTS = [
     evidence: ['obs:r04-sensor', 'obs:r04-ipmi'],
     why: 'Un solo sensor marca 34 °C, mientras R03 y R05 están cerca de 22 °C, la salida de R04 es normal y los servidores reportan 22–24 °C por IPMI. El sensor estaba suelto y colgaba hacia la parte trasera, donde sale el aire caliente. Es una medición errónea, no un problema térmico: se corrige el sensor sin escalar. La temperatura de entrada se mide en la toma de aire frontal.',
     ref: 'RB-05 · ASHRAE TC 9.9 (puntos de medición en la entrada)',
+    hints: [
+      "Antes de reaccionar a una lectura, pregúntate si el resto de la información la confirma.",
+      "Compara el sensor con R03 y R05, con la salida de R04 y con la temperatura IPMI de los servidores. Luego mira dónde está el sensor.",
+      "El sensor está suelto y mide el aire caliente de atrás: es un falso positivo. Reubícalo y fíjalo en la toma frontal, deja registro y no escales.",
+    ],
   },
   {
     id: 'E3', at: 70, rack: 'R08', proactive: 'blank-install',
@@ -244,6 +265,11 @@ export const INCIDENTS = [
     evidence: ['obs:r08-blank', 'obs:r08-recirc'],
     why: 'Faltan paneles ciegos entre U30 y U34. El aire caliente de la parte trasera vuelve al frente por el hueco (recirculación) y calienta la entrada de los equipos superiores. Se corrige en sala, sin escalar: paneles ciegos y verificación. Bajar el setpoint gasta energía y no resuelve la causa; abrir el pasillo frío rompe la contención.',
     ref: 'RB-05 · ASHRAE TC 9.9 · EU Code of Conduct for Data Centres (gestión de flujo de aire)',
+    hints: [
+      "La temperatura sube solo en la parte superior de R08. ¿Qué podría dejar pasar aire caliente hacia el frente?",
+      "Mira el frente de R08 entre U30 y U34. El aire caliente de la parte trasera vuelve por los huecos.",
+      "Faltan paneles ciegos en U30–U34. Instálalos desde el inspector de R08, verifica después la temperatura y registra el hallazgo. No toques los setpoints ni abras el pasillo frío.",
+    ],
   },
   {
     id: 'E4', at: 110, rack: 'R06', proactive: 'psu-move',
@@ -261,6 +287,11 @@ export const INCIDENTS = [
     evidence: ['obs:r06-psu', 'obs:r06-pdu', 'cal:CHG-1045'],
     why: 'k8s-n7, instalado hoy por el cliente (CHG-1045), tiene las dos fuentes conectadas a PDU-B. La rama B sube y el equipo perdió la redundancia A+B: si la rama dispara, el nodo cae y los demás quedan sin respaldo. Como es un equipo del cliente, el operador no lo desconecta por su cuenta: informa, propone la corrección y la ejecuta con autorización. El cambio indicaba «PSU1 a PDU-A y PSU2 a PDU-B»: es un error de instalación.',
     ref: 'RB-02 · TIA-942 / Uptime Institute Tiers (alimentación redundante)',
+    hints: [
+      "Una rama de PDU muy cargada y la otra liviana suele indicar un problema de conexión, no de consumo.",
+      "Revisa en la ficha de R06 (o de k8s-n7) a qué PDU va cada fuente. Mira también el cambio CHG-1045.",
+      "k8s-n7 tiene las dos fuentes en PDU-B. Es un equipo del cliente: solicita su autorización y, cuando la tengas, mueve la PSU1 a PDU-A. Sin autorización no se toca.",
+    ],
   },
   {
     id: 'E5', at: 180, rack: null, object: 'UPS-A',
@@ -278,6 +309,11 @@ export const INCIDENTS = [
     evidence: ['cal:MNT-221', 'obs:upsa-test'],
     why: 'MNT-221 programó la autoprueba mensual de baterías de UPS-A de 11:00 a 11:15. La entrada de red está normal y UPS-B opera sin novedad. Pasar a bypass dejaría la carga sin protección; arrancar el generador o avisar un corte que no existe solo genera ruido. Se verifica contra el calendario y se registra.',
     ref: 'RB-06 · IEEE 1188 (mantenimiento de baterías)',
+    hints: [
+      "¿Hay algo programado para esta hora que explique que la UPS esté en batería?",
+      "Revisa la pestaña Cambios y la pantalla de UPS-A. Compara con UPS-B y la entrada de red.",
+      "Es la autoprueba mensual MNT-221 (11:00–11:15). Verifica red y UPS-B, registra inicio y fin, y no interrumpas la prueba. No se escala.",
+    ],
   },
   {
     id: 'E6', at: 255, rack: null, object: 'CRAC-2',
@@ -295,6 +331,11 @@ export const INCIDENTS = [
     evidence: ['obs:crac2-alarm', 'obs:crac1-ok'],
     why: 'Con CRAC-2 detenido, la fila B pierde aire frío y la temperatura sube minuto a minuto: es crítico y se escala de inmediato a Climatización y al jefe de turno. Mientras llega el técnico, se compensa con CRAC-1 y se vigila la entrada de la fila B. Una alarma de alta presión no se rearma a la fuerza: insistir puede dañar el compresor.',
     ref: 'RB-01 · ASHRAE TC 9.9 (rango recomendado 18–27 °C)',
+    hints: [
+      "Una falla de climatización empeora minuto a minuto: piensa primero en contener el daño y en quién debe repararla.",
+      "Revisa CRAC-2 (qué alarma tiene) y CRAC-1 (qué margen de capacidad le queda). Mira el runbook RB-01.",
+      "Sube la capacidad de CRAC-1, mantén cerrado el pasillo frío, vigila la fila B y escala de inmediato a Climatización y al jefe de turno. No rearmes CRAC-2.",
+    ],
   },
   {
     id: 'E7', at: 330, rack: null, object: 'LEAK',
@@ -312,6 +353,11 @@ export const INCIDENTS = [
     evidence: ['obs:leak-water', 'obs:leak-cables'],
     why: 'El agua viene de la bandeja de condensado de CRAC-1 y está a 40 cm de la canalización eléctrica. Hay que contener y escalar a Climatización. Apagar CRAC-1 o cortar la energía de la sala provocaría un incidente mucho mayor que la fuga.',
     ref: 'RB-04 · TIA-942 (detección de fugas)',
+    hints: [
+      "Con agua bajo el piso, lo primero es saber de dónde viene y qué tan cerca está de la energía.",
+      "Levanta la baldosa de la zona 3 para ver el origen. Revisa el runbook RB-04.",
+      "Levanta la baldosa, contén el agua con material absorbente, toma una foto y escala a Climatización. No apagues CRAC-1 ni cortes la energía.",
+    ],
   },
   {
     id: 'E8', at: 380, rack: 'R02', proactive: 'door-secure',
@@ -329,5 +375,10 @@ export const INCIDENTS = [
     evidence: ['obs:r02-door', 'obs:r02-cable', 'acc:acc-1404'],
     why: 'La puerta se abrió sin cambio asociado, y a las 14:04 entró una tarjeta de visita (V-12) sin visita registrada. Hay un cable de consola conectado a fw-01 que no figura en el inventario. Es un posible acceso no autorizado: se avisa a Seguridad física y al jefe de turno, se preserva la evidencia y no se toca el equipo del cliente.',
     ref: 'RB-03 · ISO/IEC 27001:2022 A.7 (controles físicos)',
+    hints: [
+      "Una puerta abierta sin trabajo programado puede ser un acceso no autorizado: lo que encuentres es evidencia.",
+      "Revisa el registro de Accesos alrededor de las 14:04 y mira la parte trasera de R02 sin tocar nada.",
+      "Fotografía la puerta y el cable, revisa Accesos, asegura la puerta después de fotografiar y escala a Seguridad física y al jefe de turno. No desconectes el cable ni reinicies fw-01.",
+    ],
   },
 ];

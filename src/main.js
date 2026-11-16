@@ -1,6 +1,6 @@
-import { INCIDENTS, NOISE, ACCESS, CALENDAR, RUNBOOKS, ESCALATIONS, CLASSES, PRIORITIES, SEV, SHIFT, RACKS, CLIENTS, FIELD_ACTIONS } from './scenario.js';
+import { INCIDENTS, NOISE, ACCESS, CALENDAR, RUNBOOKS, ESCALATIONS, CLASSES, PRIORITIES, SEV, SHIFT, RACKS, CLIENTS, FIELD_ACTIONS, LEVELS, schedFor } from './scenario.js';
 import { createWorld, step, startIncident, applyClose, inspect, rackSeverity, clock, fmt1, TOTAL_DEVICES, rackMaxInlet, fieldAvailable, fieldActionsFor, requestAuth, doField, fieldById } from './sim.js';
-import { scoreTicket as scoreCore, actionStatus } from './scoring.js';
+import { scoreTicket as scoreCore, actionStatus, LEVEL_RULES } from './scoring.js';
 import { createScene } from './scene3d.js';
 import { t, applyI18n } from './i18n/index.js';
 import { initThemes, themes, getState, setTheme, setMode, onThemeChange } from './themes/index.js';
@@ -16,12 +16,12 @@ const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 let S;
-function freshState() {
+function freshState(level = 'normal') {
   return {
-    world: createWorld(), running: false, speed: 1, mode: 'estado', tab: 'monitoreo',
+    world: createWorld(schedFor(level)), running: false, speed: 1, mode: 'estado', tab: 'monitoreo',
     tickets: [], active: null, started: new Set(), sel: null, ended: false, modal: false,
     notes: [], lastMinute: -1, seenSys: 0, begun: false,
-    level: 'normal', seen: {}, seenFirst: {}, act: null, confirm: null,
+    level, seen: {}, seenFirst: {}, act: null, confirm: null,
   };
 }
 
@@ -45,6 +45,8 @@ const scene = createScene($('#view3d'), {
 
 // ---------- Utilidades de estado ------------------------------------------------
 const openTickets = () => S.tickets.filter((t) => t.closedAt == null);
+/** Guiado: sin presión de tiempo. El reloj espera mientras haya un ticket abierto (salvo durante una acción). */
+const guidedHold = () => S.level === 'guiado' && !S.act && openTickets().length > 0;
 const openIncidents = () => openTickets().filter((x) => !x.proactive).map((x) => x.inc);
 function sevMap() { const m = {}; RACKS.forEach((r) => (m[r.id] = rackSeverity(S.world, r.id, openIncidents()))); return m; }
 
@@ -69,6 +71,7 @@ function toast(html, sev = null, onClick) {
 // ---------- Bucle de tiempo -------------------------------------------------------
 function advance(dt) {
   const w = S.world;
+  w.freeze = S.level === 'guiado' ? Object.fromEntries(openTickets().map((x) => [x.inc.id, true])) : {};
   let left = dt;
   while (left > 0) {
     const d = Math.min(0.25, left);
@@ -111,7 +114,8 @@ function advance(dt) {
 let lastTs = performance.now();
 setInterval(() => {
   const now = performance.now(); const real = (now - lastTs) / 1000; lastTs = now;
-  if (!S.running || S.modal || S.ended) return;
+  if (!S.running || (S.modal && S.level !== 'experto') || S.ended) return;
+  if (guidedHold()) { updateSpeedUI(); return; }
   advance((real * (S.act ? ACT_SPEED : S.speed)) / SEC_PER_MIN);
   tickUI();
 }, 100);
@@ -226,8 +230,18 @@ function ticketDetail(tk) {
     <p>${tk.proactive ? esc(t('proactive.detail')) : esc(tk.inc.alert.text)}</p>
     <div class="evh">${t('ticket.evidence', { n: tk.evidence.length })}</div>
     ${tk.evidence.length ? `<ul class="evl">${tk.evidence.map((e) => `<li>${esc(e.label)}${closed ? '' : ` <button class="link" data-act="detach" data-ev="${esc(e.id)}">${t('ticket.remove')}</button>`}</li>`).join('')}</ul>` : `<p class="muted small">${t('ticket.noEvidence')}</p>`}
+    ${hintsHtml(tk)}
     ${closed ? `<button class="btn ghost" data-act="review" data-tk="${tk.id}">${t('ticket.review', { pts: tk.result.total })}</button>` : `<button class="btn" data-act="resolve" data-tk="${tk.id}">${t('ticket.resolve')}</button>`}
   </div>`;
+}
+
+function hintsHtml(tk) {
+  const R = LEVEL_RULES[S.level];
+  if (!R.hints || !tk.inc.hints) return '';
+  const n = tk.hints || 0, max = Math.min(R.hints, tk.inc.hints.length);
+  const shown = tk.inc.hints.slice(0, n).map((h, i) => `<li><b>${t('hints.n', { n: i + 1 })}</b> ${esc(h)}</li>`).join('');
+  const btn = n < max && tk.closedAt == null ? `<button class="link" data-act="hint" data-tk="${tk.id}">${t(R.hint ? 'hints.askCost' : 'hints.ask', { n, max, cost: R.hint })}</button>` : '';
+  return `<div class="hints">${shown ? `<ul>${shown}</ul>` : ''}${btn}</div>`;
 }
 
 function openTicket(id) {
@@ -472,6 +486,7 @@ function showReview(tk) {
   $('#modalbox').innerHTML = `<div class="mh"><div><div class="muted small">${t('review.title', { id: tk.id })}</div><h2>${esc(inc.title)}</h2></div><button type="button" class="x" data-act="close-modal" aria-label="${t('review.close')}">×</button></div>
     <div class="score ${r.total >= 80 ? 'good' : r.total >= 50 ? 'mid' : 'bad'}"><b>${r.total}</b><span>/ 100</span>${r.bonus ? `<span class="bonus">+${r.bonus} ${t('proactive.bonus')}</span>` : ''}${r.critical ? `<em>${t('review.critical')}</em>` : ''}</div>
     ${tk.proactive ? `<p class="muted small">${t('proactive.review')}</p>` : ''}
+    <p class="muted small">${t('levels.reviewLine', { level: t('levels.' + r.level), hints: r.hints })}${r.hintPen ? ' · ' + t('hints.penalty', { n: r.hintPen }) : ''}</p>
     <table class="rev"><tr><th>${t('review.colDim')}</th><th>${t('review.colYours')}</th><th>${t('review.colExp')}</th><th>${t('review.colPts')}</th></tr>
     ${r.parts.map((p) => `<tr><td>${p.dim}</td><td>${p.items ? actionItemsHtml(p) : esc(p.yours || '—')}${p.crit && p.crit.length ? `<div class="bad small">${t('review.critLabel')} ${esc(p.crit.join(' · '))}</div>` : ''}${p.wrong && p.wrong.length ? `<div class="warn small">${t('review.wrongLabel')} ${esc(p.wrong.join(' · '))}</div>` : ''}${p.missing && p.missing.length ? `<div class="muted small">${t('review.missingLabel')} ${esc(p.missing.join(' · '))}</div>` : ''}${p.notes && p.notes.length ? p.notes.map((n) => `<div class="escnote small">${esc(n)}</div>`).join('') : ''}</td><td>${esc(p.exp)}</td><td class="mono">${p.pts}/${p.max}</td></tr>`).join('')}
     ${r.pen ? `<tr><td>${t('review.dimTime')}</td><td colspan="2">${esc(r.notes.join(' '))}</td><td class="mono">−${r.pen}</td></tr>` : ''}
@@ -521,7 +536,9 @@ function endShift() {
   const pct = Math.min(100, Math.round(((m.pts + m.bonus) / m.max) * 100));
   const levels = t('end.levels');
   const nivel = levels[pct >= 85 ? 0 : pct >= 65 ? 1 : pct >= 40 ? 2 : 3];
+  const hintsUsed = S.tickets.reduce((s, x) => s + (x.hints || 0), 0);
   $('#endbox').innerHTML = `<h2>${t('end.title', { time: clock(S.world.t) })}</h2>
+    <p class="muted">${t('levels.endLine', { level: t('levels.' + S.level), hints: hintsUsed })}</p>
     <div class="endgrid">
       <div class="kpi"><b>${m.pts}${m.bonus ? ` <small class="bonus">+${m.bonus}</small>` : ''}</b><span>${t('end.ptsOf', { max: m.max, pct })}${m.bonus ? ' · ' + t('end.bonus', { n: m.bonus }) : ''}</span><em>${nivel}</em></div>
       <div class="kpi"><b>${m.closed}/${m.total}</b><span>${t('end.closed')}</span></div>
@@ -547,7 +564,7 @@ function endShift() {
 function report() {
   const m = metrics();
   const L = [];
-  L.push(t('report.title'), '', `${t('app.siteFull')} · ${t('app.role')} · ${new Date().toLocaleDateString('es-CL')}`, '');
+  L.push(t('report.title'), '', `${t('app.siteFull')} · ${t('app.role')} · ${new Date().toLocaleDateString('es-CL')}`, '', t('report.level', { level: t('levels.' + S.level), hints: S.tickets.reduce((s, x) => s + (x.hints || 0), 0) }), '');
   L.push(t('report.score', { pts: m.pts, max: m.max }) + (m.bonus ? ' ' + t('report.bonus', { n: m.bonus }) : ''), t('report.tickets', { closed: m.closed, total: m.total, sla: m.slaOk }), t('report.times', { mtta: Math.round(m.mtta), mttr: Math.round(m.mttr) }), t('report.avail', { avail: (m.avail * 100).toFixed(2), temp: fmt1(m.maxTemp) }), '');
   L.push(t('report.ticketsH'), '');
   for (const x of S.tickets) {
@@ -556,6 +573,7 @@ function report() {
     for (const p of x.result.parts) L.push(`- **${p.dim}** (${p.pts}/${p.max}): ${p.yours || '—'}`);
     if (x.evidence.length) L.push(t('report.evidence', { list: x.evidence.map((e) => e.label).join(' | ') }));
     if (x.answer.note) L.push(t('report.note', { note: x.answer.note }));
+    if (x.hints) L.push(t('report.hints', { n: x.hints }));
     L.push(t('report.total', { total: x.result.total }) + (x.result.bonus ? ` (+${x.result.bonus})` : ''), '', `> ${x.inc.why}`, '');
   }
   if (m.impacts.length) { L.push(t('report.impactsH'), ''); m.impacts.forEach((i) => L.push(`- ${clock(i.t)} · ${i.text}`)); L.push(''); }
@@ -589,6 +607,7 @@ document.addEventListener('click', async (e) => {
   else if (act === 'close-insp') { S.sel = null; scene.select(null); renderInspector(); }
   else if (scene.busy && (act === 'rack-detail' || act === 'pick-device' || act === 'insp-rack')) return;
   else if (act === 'tab') { S.tab = b.dataset.tab; renderPanel(); }
+  else if (act === 'hint') { const tk = S.tickets.find((x) => x.id === b.dataset.tk); const R = LEVEL_RULES[S.level]; if (tk && (tk.hints || 0) < Math.min(R.hints, tk.inc.hints.length)) { tk.hints = (tk.hints || 0) + 1; S.world.log.push({ t: S.world.t, kind: 'sala', text: t('hints.log', { id: tk.id, n: tk.hints }) }); renderPanel(); } }
   else if (act === 'fa') { if (!S.act) { S.confirm = b.dataset.fa; renderInspector(); } }
   else if (act === 'fa-cancel') { S.confirm = null; renderInspector(); }
   else if (act === 'fa-ok') startField(b.dataset.fa);
@@ -647,6 +666,7 @@ $('#search').addEventListener('keydown', (e) => {
 });
 
 function updateSpeedUI() {
+  $('#clockwrap').classList.toggle('held', !!(S && guidedHold() && S.running));
   const ap = $('#actprog');
   if (ap) { ap.hidden = !S.act; if (S.act) { ap.textContent = t('field.progressShort', { n: 0, m: S.act.fa.min }); ap.title = S.act.fa.verb; } }
   document.querySelectorAll('[data-speed]').forEach((b) => b.classList.toggle('on', S.running && Number(b.dataset.speed) === S.speed));
@@ -655,9 +675,11 @@ function updateSpeedUI() {
   $('#clockwrap').classList.toggle('paused', !S.running);
 }
 
-function boot() {
+function boot(level = (S && S.level) || 'normal') {
   if (scene.detail) scene.exitRack();
-  S = freshState();
+  S = freshState(level);
+  document.body.dataset.level = level;
+  const lb = $('#levelbadge'); if (lb) lb.textContent = t('levels.' + level);
   S.lastMinute = -1;
   $('#clock').textContent = clock(0);
   scene.update(S.world, S.mode, sevMap());
@@ -725,6 +747,8 @@ function showLanding(soon) {
   $('.lset').appendChild($('.settings'));
   scene.setLanding(true);
   $('#turnobtn').textContent = t(S.begun && !S.ended ? 'landing.turnoContinue' : 'landing.turnoStart');
+  renderLevelPicker();
+  if (S.begun && !S.ended) $('#turnobtn').setAttribute('href', '#turno/' + S.level);
   renderLastRun();
   document.querySelectorAll('[data-modecard]').forEach((c) => c.classList.toggle('hl', c.dataset.modecard === soon));
   const note = $('#soonnote');
@@ -746,9 +770,24 @@ function enterTurno() {
     else { S.running = true; lastTs = performance.now(); updateSpeedUI(); }
   });
 }
+const LEVEL_KEY = 'ronda-dc-nivel';
+function chosenLevel() { try { return localStorage.getItem(LEVEL_KEY) || 'normal'; } catch (e) { return 'normal'; } }
+function renderLevelPicker() {
+  const lv = chosenLevel();
+  document.querySelectorAll('[data-level]').forEach((b) => { b.classList.toggle('on', b.dataset.level === lv); b.setAttribute('aria-pressed', b.dataset.level === lv); });
+  $('#leveldesc').textContent = t('levels.' + lv + 'Desc');
+  $('#turnobtn').setAttribute('href', '#turno/' + lv);
+}
+document.querySelectorAll('[data-level]').forEach((b) => b.addEventListener('click', () => { try { localStorage.setItem(LEVEL_KEY, b.dataset.level); } catch (e) { /* sin almacenamiento */ } renderLevelPicker(); }));
+
 function route() {
   const h = location.hash.replace(/^#\/?/, '');
-  if (h === 'turno') enterTurno();
+  const [r0, r1] = h.split('/');
+  if (r0 === 'turno') {
+    const lv = LEVELS.some((l) => l.id === r1) ? r1 : 'normal';
+    if (!S.begun && S.level !== lv) { boot(lv); }
+    enterTurno();
+  }
   else showLanding(SOON.includes(h) ? h : null);
 }
 

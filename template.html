@@ -196,7 +196,7 @@ header{--px:0px;--py:-12px;position:relative;z-index:35}aside{--px:24px;--py:0px
 .lh{font:600 14px var(--head);letter-spacing:.09em;text-transform:uppercase;color:var(--mut);margin:14px 0 8px}
 .soonnote{margin:6px 0 0;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--glass);max-width:62ch}
 .modecards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.modecard{display:grid;grid-template-rows:auto 1fr auto auto;gap:10px;background:var(--glass);border:1px solid var(--line);border-radius:10px;padding:16px;box-shadow:0 8px 28px var(--shadow)}
+.modecard{display:grid;grid-template-rows:auto 1fr auto auto auto;gap:10px;background:var(--glass);border:1px solid var(--line);border-radius:10px;padding:16px;box-shadow:0 8px 28px var(--shadow)}
 .modecard .mch{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .modecard h3{margin:0;font:600 21px var(--head);letter-spacing:.03em}
 .modecard p{margin:0;font-size:14.5px}
@@ -243,6 +243,10 @@ header{--px:0px;--py:-12px;position:relative;z-index:35}aside{--px:24px;--py:0px
 .acti .st-done em{color:var(--good-text)}.acti .st-notdone em,.acti .st-false em{color:var(--bad-text)}
 .chip.pro{background:var(--chip-done-bg);color:var(--chip-done-ink)}
 .score .bonus,.kpi .bonus{font:600 14px var(--sans);color:var(--good-text);margin-left:8px}
+.modecard .lvl{display:grid;gap:6px}.modecard .lvl .seg{justify-content:stretch}.modecard .lvl .seg button{flex:1}
+#clockwrap.held #clock{color:var(--mut)}
+.hints{margin:6px 0 10px;font-size:13px}.hints ul{margin:0 0 6px;padding-left:18px;display:grid;gap:4px}
+body[data-level=experto] .obs.w{box-shadow:none}
 .escnote{margin-top:6px;padding:6px 8px;border-radius:6px;background:var(--panel2);color:var(--txt)}
 @media (prefers-reduced-motion:reduce){#flash.on{animation:none}}
 /* paneles: entrada y salida con deslizamiento y fundido (nunca de golpe) */
@@ -264,7 +268,7 @@ header{--px:0px;--py:-12px;position:relative;z-index:35}aside{--px:24px;--py:0px
   <div class="spacer"></div>
   <div class="modes" role="group" aria-label="Vista" data-i18n-attr="aria-label:header.viewGroup"><button data-mode="estado" class="on" data-i18n="header.modeState">Estado</button><button data-mode="calor" data-i18n="header.modeHeat">Calor</button></div>
   <input id="search" type="search" placeholder="Buscar host o rack…" aria-label="Buscar host o rack" data-i18n-attr="placeholder:header.search;aria-label:header.search">
-  <div id="clockwrap"><span id="clock" aria-live="off">08:00</span><span id="actprog" role="status" hidden></span><div id="shiftbar" title="Avance del turno (08:00–15:00)" data-i18n-attr="title:header.shiftBar"><i></i></div>
+  <div id="clockwrap"><span class="chip" id="levelbadge"></span><span id="clock" aria-live="off">08:00</span><span id="actprog" role="status" hidden></span><div id="shiftbar" title="Avance del turno (08:00–15:00)" data-i18n-attr="title:header.shiftBar"><i></i></div>
     <div class="seg"><button id="pause" aria-label="Pausar">❚❚</button><button data-speed="1" class="on">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button><button id="skip" title="Adelantar al siguiente evento (sin tickets abiertos)" aria-label="Adelantar al siguiente evento" data-i18n-attr="title:header.skip;aria-label:header.skipAria">⏭</button></div></div>
   <button id="endbtn" data-i18n="header.end">Terminar turno</button>
   <div class="helpwrap">
@@ -364,6 +368,7 @@ header{--px:0px;--py:-12px;position:relative;z-index:35}aside{--px:24px;--py:0px
           <div class="mch"><h3 data-i18n="landing.turnoTitle"></h3><span class="chip done" data-i18n="landing.available"></span></div>
           <p data-i18n="landing.turnoDesc"></p>
           <div class="mct mono">⏱ <span data-i18n="landing.turnoTime"></span></div>
+          <div class="lvl"><div class="seg" role="group" aria-label="Nivel" data-i18n-attr="aria-label:levels.title"><button type="button" data-level="guiado" data-i18n="levels.guiado">Guiado</button><button type="button" data-level="normal" data-i18n="levels.normal">Normal</button><button type="button" data-level="experto" data-i18n="levels.experto">Experto</button></div><p class="muted small" id="leveldesc"></p></div>
           <a class="btn" href="#turno" id="turnobtn" data-i18n="landing.turnoStart">Comenzar turno</a>
         </article>
         <article class="modecard soon" data-modecard="checklist">
