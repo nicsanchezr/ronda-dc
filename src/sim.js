@@ -1,12 +1,12 @@
 // Motor de simulación: estado de la sala, dinámica física simple,
 // efectos de las decisiones e inspección de objetos.
 import { RACKS, INCIDENTS, SHIFT, CLIENTS, modelOf, FIELD_ACTIONS } from './scenario.js';
-import { t as tr } from './i18n/index.js';
+import { t as tr, msg, num, pct, tm, fmtNum, fmtPct } from './i18n/index.js';
 
 const BASE = { R01: 21.6, R02: 21.9, R03: 22.1, R04: 22.0, R05: 21.8, R06: 22.3, R07: 22.0, R08: 22.0, R09: 21.7, R10: 21.5 };
 const ROW_B = ['R06', 'R07', 'R08', 'R09', 'R10'];
 
-export const fmt1 = (n) => n.toFixed(1).replace('.', ',');
+export const fmt1 = (n) => fmtNum(n, 1); // 22,4 (es) / 22.4 (en)
 export const clock = (t) => {
   const m = Math.floor(SHIFT.start + t);
   return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
@@ -46,13 +46,19 @@ export function createWorld(sched) {
 const TOTAL_DEVICES = RACKS.reduce((n, r) => n + r.devices.filter((d) => d.type !== 'patch').length, 0);
 export { TOTAL_DEVICES };
 
-function impact(w, text, sev = 'high') {
-  w.impacts.push({ t: w.t, text, sev });
-  w.log.push({ t: w.t, kind: 'impacto', text });
+// Bitácora, impactos y alertas del sistema guardan mensajes (clave + valores), no texto:
+// se traducen al mostrarlos (ver i18n/index.js → tm).
+function impact(w, key, sev = 'high', v) {
+  const m = msg('sim.impact.' + key, v);
+  w.impacts.push({ t: w.t, m, sev });
+  w.log.push({ t: w.t, kind: 'impacto', m });
 }
-function sys(w, sev, host, text) {
-  w.sysAlerts.push({ t: w.t, sev, host, text, id: 'S' + w.sysAlerts.length });
+function sys(w, sev, host, key, v) {
+  w.sysAlerts.push({ t: w.t, sev, host, m: msg('sim.sys.' + key, v), id: 'S' + w.sysAlerts.length });
 }
+const logm = (w, key, v, t = w.t) => w.log.push({ t, kind: 'sala', m: msg('sim.log.' + key, v) });
+/** Observación de la ronda: id, mensaje y si se resalta. text se traduce al leerla. */
+const O = (id, key, v, warn = false) => ({ id, warn, m: msg('insp.obs.' + key, v), get text() { return tm(this.m); } });
 function later(w, delay, fn) {
   w.timers.push({ at: w.t + delay, fn });
 }
@@ -90,7 +96,7 @@ export function step(w, dt) {
   due.forEach((x) => x.fn(w));
 
   // E1: técnico del proveedor y disco degradado
-  if (t0 < 98 && t >= 98) { w.flags.techInRoom = false; w.log.push({ t: 98, kind: 'sala', text: 'El técnico de Austral Storage Services terminó el reemplazo del disco de stg-02 y salió de la sala.' }); }
+  if (t0 < 98 && t >= 98) { w.flags.techInRoom = false; logm(w, 'techLeft', null, 98); }
 
   // E2 sensor suelto: sin dinámica
 
@@ -108,8 +114,8 @@ export function step(w, dt) {
     if (r6.pduB >= 96) {
       w.flags.breaker = true; r6.pduB = 0; r6.pduA = 54;
       w.down['k8s-n7'] = Infinity;
-      sys(w, 'disaster', 'PDU-R06-B', 'Disparo del interruptor de PDU-B en R06: k8s-n7 sin energía');
-      impact(w, 'Se disparó el interruptor de PDU-B en R06: k8s-n7 quedó sin energía y el resto del rack, sin respaldo.', 'disaster');
+      sys(w, 'disaster', 'PDU-R06-B', 'breaker');
+      impact(w, 'breaker', 'disaster');
     }
   }
 
@@ -117,7 +123,7 @@ export function step(w, dt) {
   const ua = w.ups.A;
   const u0 = w.sched.E5;
   if (t >= u0 && t < u0 + 15) { ua.mode = 'battery'; ua.batt = Math.max(90, 100 - (t - u0) * 0.5); }
-  else if (t >= u0 + 15 && ua.mode === 'battery') { ua.mode = 'online'; w.log.push({ t, kind: 'sala', text: 'UPS-A terminó la autoprueba de baterías y volvió a operar en línea.' }); }
+  else if (t >= u0 + 15 && ua.mode === 'battery') { ua.mode = 'online'; logm(w, 'upsTestEnd'); }
   else if (ua.mode === 'online' && ua.batt < 100) ua.batt = Math.min(100, ua.batt + 0.2 * dt);
 
   // E6 climatización
@@ -132,14 +138,14 @@ export function step(w, dt) {
     else if (rk.temp > BASE[r]) rk.temp = Math.max(BASE[r], rk.temp - 0.18 * dt);
     const real = rackMaxInlet(w, r);
     w.maxTemp = Math.max(w.maxTemp, real);
-    if (real >= 27 && !rk.warned27) { rk.warned27 = true; sys(w, 'warning', 'ENV-' + r + '-IN', `Temperatura de entrada sobre 27 °C en ${r}`); }
+    if (real >= 27 && !rk.warned27) { rk.warned27 = true; sys(w, 'warning', 'ENV-' + r + '-IN', 'over27', { rack: r }); }
     if (real < 26) rk.warned27 = false;
     if (real >= 32 && !rk.shutdown) {
       rk.shutdown = true;
-      sys(w, 'disaster', 'ENV-' + r + '-IN', `Apagado térmico de equipos en ${r} (entrada ${fmt1(real)} °C)`);
-      impact(w, `Los equipos de ${r} se apagaron por protección térmica (entrada sobre 32 °C).`, 'disaster');
+      sys(w, 'disaster', 'ENV-' + r + '-IN', 'thermal', { rack: r, temp: num(real) });
+      impact(w, 'thermal', 'disaster', { rack: r });
     }
-    if (rk.shutdown && real < 26) { rk.shutdown = false; w.log.push({ t, kind: 'sala', text: `Los equipos de ${r} volvieron a encender tras normalizarse la temperatura.` }); }
+    if (rk.shutdown && real < 26) { rk.shutdown = false; logm(w, 'rackBackOn', { rack: r }); }
   }
 
   // E7 fuga
@@ -148,8 +154,8 @@ export function step(w, dt) {
     if (!lk.contained && !w.freeze.E7) lk.radius = Math.min(1.2, lk.radius + 0.025 * dt);
     if (!lk.contained && !lk.reached && lk.radius >= 0.18 + 0.025 * 40) {
       lk.reached = true;
-      impact(w, 'El agua alcanzó la canalización eléctrica bajo el piso técnico.', 'disaster');
-      sys(w, 'disaster', 'LEAK-Z3', 'Líquido en contacto con la canalización eléctrica · Zona 3');
+      impact(w, 'leakReached', 'disaster');
+      sys(w, 'disaster', 'LEAK-Z3', 'leakCables');
     }
   }
 
@@ -164,7 +170,7 @@ export function step(w, dt) {
       const fa = FIELD_ACTIONS.find((f) => f.id === id);
       a.grant = !!fa.auth.grant;
       w.authEvents.push({ id, grant: a.grant, t });
-      w.log.push({ t, kind: 'sala', text: (a.grant ? 'El cliente autorizó: ' : 'El cliente no autorizó: ') + fa.label.toLowerCase() + '.' });
+      w.log.push({ t, kind: 'sala', m: msg(a.grant ? 'field.authYes' : 'field.authNo', { label: msg('sc.fa.' + id + '.label') }) });
     }
   }
 
@@ -267,7 +273,7 @@ export function requestAuth(w, fa) {
   if (w.auth[fa.id]) return false;
   w.auth[fa.id] = { req: w.t, at: w.t + fa.auth.after, grant: null };
   w.escReq[fa.inc] = true;
-  w.log.push({ t: w.t, kind: 'sala', text: 'Solicitud de autorización al cliente: ' + fa.label.toLowerCase() + '.' });
+  logm(w, 'authReq', { label: msg('sc.fa.' + fa.id + '.label') });
   return true;
 }
 
@@ -276,42 +282,42 @@ export function doField(w, fa) {
   const a = w.auth[fa.id];
   const authorized = !!(a && a.grant);
   w.done[fa.id] = { t: w.t, auth: authorized };
-  const L = (text) => w.log.push({ t: w.t, kind: 'sala', text });
+  const L = (key, v) => logm(w, key, v);
   const f = w.flags;
   switch (fa.id) {
-    case 'tech-escort': L('Acompañaste al técnico de Austral Storage Services en R07 durante el reemplazo del disco.'); break;
-    case 'stg02-off': w.down['stg-02'] = w.t + 25; impact(w, 'Apagaste stg-02 (Logística Austral) sin autorización: 25 minutos fuera de servicio.'); break;
-    case 'sensor-fix': w.racks.R04.sensorLoose = false; L('Sensor superior de entrada de R04 reubicado y fijado: marca ' + fmt1(w.racks.R04.temp + 0.5) + ' °C.'); break;
-    case 'r04-hosts-off': ['vm-host01', 'vm-host02', 'vm-host03', 'vm-host04'].forEach((n) => (w.down[n] = w.t + 30)); impact(w, 'Apagaste los hosts de virtualización de R04 por una lectura errónea: 30 minutos de servicio caído para Fintech Pehuén.'); break;
-    case 'crac-100': impact(w, 'Los CRAC funcionaron al 100 % sin necesidad: mayor consumo de energía (peor PUE).', 'warning'); break;
-    case 'blank-install': w.racks.R08.gap = false; L('Paneles ciegos instalados en R08 (U30–U34).'); break;
-    case 'setpoint-16': impact(w, 'Setpoint de los CRAC bajado a 16 °C sin necesidad: mayor consumo de energía.', 'warning'); break;
-    case 'aisle-open': f.aisleOpen = true; impact(w, 'Se abrió la contención del pasillo frío: mezcla de aire y pérdida de eficiencia.', 'average'); break;
+    case 'tech-escort': L('escort'); break;
+    case 'stg02-off': w.down['stg-02'] = w.t + 25; impact(w, 'stg02Off'); break;
+    case 'sensor-fix': w.racks.R04.sensorLoose = false; L('sensorFixed', { temp: num(w.racks.R04.temp + 0.5) }); break;
+    case 'r04-hosts-off': ['vm-host01', 'vm-host02', 'vm-host03', 'vm-host04'].forEach((n) => (w.down[n] = w.t + 30)); impact(w, 'r04HostsOff'); break;
+    case 'crac-100': impact(w, 'crac100', 'warning'); break;
+    case 'blank-install': w.racks.R08.gap = false; L('blanks'); break;
+    case 'setpoint-16': impact(w, 'setpoint16', 'warning'); break;
+    case 'aisle-open': f.aisleOpen = true; impact(w, 'aisleOpen', 'average'); break;
     case 'psu-move':
       f.n7psu = 'AB'; w.racks.R06.pduB = 47; w.racks.R06.pduA = 49;
-      if (authorized) L('Con autorización de Fintech Pehuén, PSU1 de k8s-n7 movida a PDU-A. Carga B: 47 %.');
-      else { w.down['k8s-n7'] = w.t + 6; impact(w, 'Desconectaste la PSU1 de k8s-n7 sin autorización: el nodo se reinició y el cliente presentó un reclamo.'); }
+      if (authorized) L('psuMoved', { load: pct(47) });
+      else { w.down['k8s-n7'] = w.t + 6; impact(w, 'psuNoAuth'); }
       break;
-    case 'n7-off': w.down['k8s-n7'] = Infinity; w.racks.R06.pduB = 70; impact(w, 'Apagaste k8s-n7, un equipo de producción del cliente, sin autorización.'); break;
-    case 'ups-bypass': impact(w, 'UPS-A quedó en bypass: la carga estuvo sin protección durante la prueba.'); break;
-    case 'crac1-boost': f.crac1Boost = true; w.crac[1].cap = 90; L('CRAC-1 subido al 90 % de capacidad.'); break;
-    case 'crac2-reset': impact(w, 'Rearmaste el compresor de CRAC-2: con una alarma de alta presión, insistir lo daña y la reparación se retrasa.'); break;
-    case 'tile-lift': f.tileLifted = true; L('Baldosa de la zona 3 levantada: hay agua de la bandeja de condensado de CRAC-1.'); break;
-    case 'absorbent': w.leak.contained = true; L('Material absorbente colocado en la zona 3: el agua dejó de avanzar.'); break;
-    case 'crac1-off': w.flags.crac1OffUntil = w.t + 30; w.crac[1].off = true; later(w, 30, (ww) => { ww.crac[1].off = false; }); impact(w, 'Apagaste CRAC-1: la sala quedó con menos climatización durante 30 minutos.'); break;
+    case 'n7-off': w.down['k8s-n7'] = Infinity; w.racks.R06.pduB = 70; impact(w, 'n7Off'); break;
+    case 'ups-bypass': impact(w, 'upsBypass'); break;
+    case 'crac1-boost': f.crac1Boost = true; w.crac[1].cap = 90; L('crac1Boost', { cap: pct(90) }); break;
+    case 'crac2-reset': impact(w, 'crac2Reset'); break;
+    case 'tile-lift': f.tileLifted = true; L('tileLifted'); break;
+    case 'absorbent': w.leak.contained = true; L('absorbent'); break;
+    case 'crac1-off': w.flags.crac1OffUntil = w.t + 30; w.crac[1].off = true; later(w, 30, (ww) => { ww.crac[1].off = false; }); impact(w, 'crac1Off'); break;
     case 'door-secure':
       w.racks.R02.rearOpen = false; f.r02Secured = true;
-      L('Puerta trasera de R02 asegurada.');
+      L('doorSecured');
       break;
-    case 'cable-unplug': f.cable = false; impact(w, 'Desconectaste el cable de consola: se alteró evidencia de un posible acceso no autorizado.', 'average'); break;
-    case 'trash-remove': f.trash = false; L('Embalaje retirado del pasillo caliente, junto a R06.'); break;
-    case 'fw01-reboot': w.down['fw-01'] = w.t + 10; impact(w, 'Reiniciaste fw-01 sin autorización: Retail Andino perdió conectividad 10 minutos y se perdieron registros volátiles.'); break;
+    case 'cable-unplug': f.cable = false; impact(w, 'cableUnplug', 'average'); break;
+    case 'trash-remove': f.trash = false; L('trashRemoved'); break;
+    case 'fw01-reboot': w.down['fw-01'] = w.t + 10; impact(w, 'fw01Reboot'); break;
     default: break;
   }
   if (fa.photo) {
-    const photo = { id: 'foto:' + fa.id, label: fa.photo + ' (' + clock(w.t) + ')', t: w.t, inc: fa.inc };
+    const photo = { id: 'foto:' + fa.id, m: msg('sim.photoLabel', { label: msg('sc.fa.' + fa.id + '.photo'), time: clock(w.t) }), t: w.t, inc: fa.inc };
     w.photos.push(photo);
-    L(fa.photo + '.');
+    L('photo', { label: msg('sc.fa.' + fa.id + '.photo') });
     return photo;
   }
   return null;
@@ -323,21 +329,21 @@ export function applyClose(w, inc, ans) {
   const esc = (e) => ans.esc.includes(e);
   switch (inc.id) {
     case 'E1':
-      if (has('a4')) impact(w, 'Se interrumpió un cambio aprobado (CHG-1042): el proveedor deberá reprogramar la visita.', 'average');
+      if (has('a4')) impact(w, 'chgInterrupted', 'average');
       break;
     case 'E5':
-      if (has('a6')) impact(w, 'Se avisó a todos los clientes de un corte inexistente: 14 llamadas a la mesa de servicio.', 'average');
+      if (has('a6')) impact(w, 'falseOutage', 'average');
       break;
     case 'E6': {
       let delay = esc('clima') ? 25 : 70;
       if (done(w, 'crac2-reset')) delay += 60;
-      later(w, delay, (ww) => { ww.flags.crac2Down = false; ww.crac[2].status = 'ok'; ww.log.push({ t: ww.t, kind: 'sala', text: 'Climatización reparó CRAC-2 (presostato y carga de refrigerante). Unidad operando.' }); });
+      later(w, delay, (ww) => { ww.flags.crac2Down = false; ww.crac[2].status = 'ok'; logm(ww, 'crac2Fixed'); });
       break;
     }
     case 'E7':
-      if (has('a6')) { w.flags.powerCutUntil = w.t + 20; impact(w, 'Cortaste la energía de la sala: todos los equipos se apagaron durante 20 minutos.', 'disaster'); }
-      if (esc('clima')) later(w, 12, (ww) => { ww.leak.active = false; ww.leak.contained = true; ww.log.push({ t: ww.t, kind: 'sala', text: 'Climatización destapó el drenaje de condensado de CRAC-1 y secó la zona 3.' }); });
-      else later(w, 45, (ww) => { ww.leak.active = false; ww.log.push({ t: ww.t, kind: 'sala', text: 'Mantención detectó la fuga en su ronda y la contuvo.' }); });
+      if (has('a6')) { w.flags.powerCutUntil = w.t + 20; impact(w, 'powerCut', 'disaster'); }
+      if (esc('clima')) later(w, 12, (ww) => { ww.leak.active = false; ww.leak.contained = true; logm(ww, 'leakFixed'); });
+      else later(w, 45, (ww) => { ww.leak.active = false; logm(ww, 'leakMaint'); });
       break;
     default: break;
   }
@@ -346,94 +352,98 @@ export function applyClose(w, inc, ans) {
 // --- Inspección de objetos en la sala ------------------------------------------
 export function inspect(w, kind, id) {
   const t = w.t;
+  const C = (n) => fmt1(n) + ' °C';
+  const done = (titleM, subM, readings, obs, extra = {}) => ({ titleM, title: tm(titleM), sub: tm(subM), readings, obs, ...extra });
   if (kind === 'rack') {
     const def = RACKS.find((r) => r.id === id);
     const rk = w.racks[id];
     const top = readTop(w, id);
     const obs = [];
     const ipmiLo = rk.temp + 0.1, ipmiHi = rk.temp + 1.9;
+    const tripped = w.flags.breaker && id === 'R06';
     const readings = [
-      ['Cliente', CLIENTS[def.client]],
-      ['Entrada inferior', fmt1(rk.temp - 0.4) + ' °C', cls(rk.temp - 0.4)],
-      ['Entrada media', fmt1(rk.temp) + ' °C', cls(rk.temp)],
-      ['Entrada superior (sensor)', fmt1(top) + ' °C', cls(top)],
-      ['Salida (trasera)', fmt1(rk.temp + 11.5 + rk.top * 0.3) + ' °C'],
-      ['PDU-A', Math.round(rk.pduA) + ' %', rk.pduA >= 80 ? 'bad' : ''],
-      ['PDU-B', w.flags.breaker && id === 'R06' ? 'DISPARADA' : Math.round(rk.pduB) + ' %', (rk.pduB >= 80 || (w.flags.breaker && id === 'R06')) ? 'bad' : ''],
-      ['Puerta trasera', rk.rearOpen ? 'ABIERTA' : 'Cerrada', rk.rearOpen ? 'bad' : ''],
-      ['Paneles ciegos', rk.gap ? 'Faltan U30–U34' : 'Completos', rk.gap ? 'warn' : ''],
+      [tr('insp.rack.client'), CLIENTS[def.client]],
+      [tr('insp.rack.inLow'), C(rk.temp - 0.4), cls(rk.temp - 0.4)],
+      [tr('insp.rack.inMid'), C(rk.temp), cls(rk.temp)],
+      [tr('insp.rack.inTop'), C(top), cls(top)],
+      [tr('insp.rack.outlet'), C(rk.temp + 11.5 + rk.top * 0.3)],
+      ['PDU-A', fmtPct(Math.round(rk.pduA)), rk.pduA >= 80 ? 'bad' : ''],
+      ['PDU-B', tripped ? tr('pdu.tripped') : fmtPct(Math.round(rk.pduB)), (rk.pduB >= 80 || tripped) ? 'bad' : ''],
+      [tr('insp.rack.rearDoor'), rk.rearOpen ? tr('insp.rack.open') : tr('insp.rack.closed'), rk.rearOpen ? 'bad' : ''],
+      [tr('insp.rack.blanks'), rk.gap ? tr('insp.rack.blanksMissing') : tr('insp.rack.blanksOk'), rk.gap ? 'warn' : ''],
     ];
-    obs.push({ id: 'obs:' + id.toLowerCase() + '-ipmi', text: `Temperatura de entrada informada por IPMI de los servidores: ${fmt1(ipmiLo)}–${fmt1(ipmiHi)} °C.` });
-    if (id === 'R04' && rk.sensorLoose) obs.push({ id: 'obs:r04-sensor', warn: true, text: 'El sensor superior de entrada está suelto: cuelga por el costado, hacia la parte trasera del rack.' });
+    obs.push(O('obs:' + id.toLowerCase() + '-ipmi', 'ipmi', { lo: num(ipmiLo), hi: num(ipmiHi) }));
+    if (id === 'R04' && rk.sensorLoose) obs.push(O('obs:r04-sensor', 'r04Sensor', null, true));
     if (id === 'R08' && rk.gap) {
-      obs.push({ id: 'obs:r08-blank', warn: true, text: 'Faltan paneles ciegos entre U30 y U34 en el frente del rack.' });
-      if (t > 40) obs.push({ id: 'obs:r08-recirc', warn: true, text: 'Frente al hueco se siente aire tibio que viene desde la parte trasera.' });
+      obs.push(O('obs:r08-blank', 'r08Blank', null, true));
+      if (t > 40) obs.push(O('obs:r08-recirc', 'r08Recirc', null, true));
     }
     if (id === 'R06') {
-      obs.push({ id: 'obs:r06-pdu', warn: rk.pduB >= 80, text: `Pantallas de las PDU: A ${Math.round(rk.pduA)} % · B ${w.flags.breaker ? 'disparada' : Math.round(rk.pduB) + ' %'}.` });
-      if (w.flags.n7psu === 'BB') obs.push({ id: 'obs:r06-psu', warn: true, text: 'k8s-n7 (U23–U24): PSU1 → PDU-B y PSU2 → PDU-B.' });
-      obs.push({ id: 'obs:r06-label', text: 'Etiqueta en k8s-n7: «Instalado hoy 07:30 · CHG-1045».' });
-      if (w.flags.trash) obs.push({ id: 'obs:r06-box', warn: true, text: 'Junto a R06, en el pasillo caliente, quedó una caja de cartón con el embalaje del equipo instalado hoy.' });
+      obs.push(r06PduObs(w));
+      if (w.flags.n7psu === 'BB') obs.push(O('obs:r06-psu', 'r06Psu', null, true));
+      obs.push(O('obs:r06-label', 'r06Label'));
+      if (w.flags.trash) obs.push(O('obs:r06-box', 'r06Box', null, true));
     }
-    if (id === 'R07' && w.flags.techInRoom) obs.push({ id: 'obs:r07-tech', text: 'Técnico de Austral Storage Services (credencial P-0412) reemplazando el disco 3 de stg-02. El equipo sigue encendido.' });
-    if (id === 'R02' && rk.rearOpen) obs.push({ id: 'obs:r02-door', warn: true, text: 'Puerta trasera abierta; la cerradura no muestra daños.' });
-    if (id === 'R02' && w.flags.cable) obs.push({ id: 'obs:r02-cable', warn: true, text: 'Cable de consola azul conectado al puerto de consola de fw-01; no figura en el inventario del rack.' });
-    if (obs.length === 1) obs.push({ id: 'obs:' + id.toLowerCase() + '-ok', text: 'Sin novedades visibles en la ronda.' });
+    if (id === 'R07' && w.flags.techInRoom) obs.push(O('obs:r07-tech', 'r07Tech'));
+    if (id === 'R02' && rk.rearOpen) obs.push(O('obs:r02-door', 'r02Door', null, true));
+    if (id === 'R02' && w.flags.cable) obs.push(O('obs:r02-cable', 'r02Cable', null, true));
+    if (obs.length === 1) obs.push(O('obs:' + id.toLowerCase() + '-ok', 'rackOk'));
     const devices = def.devices.map((d) => ({
       name: d.name, u: d.u, h: d.h, type: d.type,
       psu: psuBranches(w, id, d).join(' + ') || '—',
       state: deviceState(w, id, d),
     })).sort((a, b) => b.u - a.u);
-    return { title: 'Rack ' + id, sub: 'Fila ' + def.row + ' · ' + CLIENTS[def.client], readings, obs, devices };
+    return done(msg('rackView.title', { id }), msg('rackView.sub', { row: def.row, client: CLIENTS[def.client] }), readings, obs, { devices });
   }
   if (kind === 'crac') {
     const n = id === 'CRAC-1' ? 1 : 2;
     const c = w.crac[n];
     const obs = [];
+    const zone = tr(n === 1 ? 'insp.crac.rowA' : 'insp.crac.rowB');
     let readings;
     if (n === 2 && w.flags.crac2Down) {
       const sup = 18 + Math.min(10, (t - w.sched.E6) * 0.3);
-      readings = [['Estado', 'ALARMA · compresor detenido', 'bad'], ['Ventiladores', 'En marcha'], ['Impulsión', fmt1(sup) + ' °C', 'bad'], ['Retorno', fmt1(31 + Math.min(5, (t - w.sched.E6) * 0.1)) + ' °C'], ['Zona que enfría', 'Fila B (R06–R10)']];
-      obs.push({ id: 'obs:crac2-alarm', warn: true, text: 'Pantalla: «HP1 – High pressure compressor 1». Ventiladores en marcha, compresor detenido.' });
-      obs.push({ id: 'obs:crac2-supply', warn: true, text: `Aire de impulsión a ${fmt1(sup)} °C (normal: 18 °C).` });
+      readings = [[tr('insp.crac.state'), tr('insp.crac.alarm'), 'bad'], [tr('insp.crac.fans'), tr('insp.crac.running')], [tr('insp.crac.supply'), C(sup), 'bad'], [tr('insp.crac.return'), C(31 + Math.min(5, (t - w.sched.E6) * 0.1))], [tr('insp.crac.zone'), zone]];
+      obs.push(O('obs:crac2-alarm', 'crac2Alarm', null, true));
+      obs.push(O('obs:crac2-supply', 'crac2Supply', { temp: num(sup), normal: num(18) }, true));
     } else if (n === 1 && c.off) {
-      readings = [['Estado', 'DETENIDO', 'bad'], ['Zona que enfría', 'Fila A (R01–R05)']];
+      readings = [[tr('insp.crac.state'), tr('insp.crac.stopped'), 'bad'], [tr('insp.crac.zone'), zone]];
     } else {
-      readings = [['Estado', 'Operando'], ['Capacidad', c.cap + ' %'], ['Impulsión', '18,0 °C'], ['Retorno', '30,5 °C'], ['Zona que enfría', n === 1 ? 'Fila A (R01–R05)' : 'Fila B (R06–R10)'], ['Alarmas', 'Ninguna']];
-      if (n === 1) obs.push({ id: 'obs:crac1-ok', text: `CRAC-1 operando al ${c.cap} % de capacidad${c.cap < 90 ? ': tiene margen para subir' : ''}.` });
-      else obs.push({ id: 'obs:crac2-ok', text: 'CRAC-2 operando sin alarmas.' });
+      readings = [[tr('insp.crac.state'), tr('insp.crac.operating')], [tr('insp.crac.capacity'), fmtPct(c.cap)], [tr('insp.crac.supply'), C(18)], [tr('insp.crac.return'), C(30.5)], [tr('insp.crac.zone'), zone], [tr('insp.crac.alarms'), tr('insp.crac.none')]];
+      if (n === 1) obs.push(O('obs:crac1-ok', c.cap < 90 ? 'crac1OkMargin' : 'crac1Ok', { cap: pct(c.cap) }));
+      else obs.push(O('obs:crac2-ok', 'crac2Ok'));
     }
-    if (n === 1 && w.leak.active) obs.push({ id: 'obs:crac1-tray', warn: true, text: 'La bandeja de condensado de CRAC-1 está llena hasta el borde.' });
-    else if (n === 1 && !w.leak.contained && w.t < (w.sched.E7 ?? Infinity)) obs.push({ id: 'obs:crac1-tray-high', warn: true, text: 'La bandeja de condensado de CRAC-1 está casi llena y el drenaje corre lento.' });
-    return { title: id, sub: 'Unidad de climatización de precisión', readings, obs };
+    if (n === 1 && w.leak.active) obs.push(O('obs:crac1-tray', 'crac1Tray', null, true));
+    else if (n === 1 && !w.leak.contained && w.t < (w.sched.E7 ?? Infinity)) obs.push(O('obs:crac1-tray-high', 'crac1TrayHigh', null, true));
+    return done(id, msg('insp.crac.sub'), readings, obs);
   }
   if (kind === 'ups') {
     const u = w.ups[id.slice(-1)];
     const testing = id === 'UPS-A' && u.mode === 'battery';
     const readings = [
-      ['Modo', testing ? 'EN BATERÍA (prueba)' : 'En línea', testing ? 'warn' : ''],
-      ['Entrada de red', '221 V · normal'],
-      ['Carga', u.load + ' %'],
-      ['Batería', Math.round(u.batt) + ' %'],
-      ['Autonomía estimada', testing ? '19 min' : '22 min'],
-      ['Alimenta', id === 'UPS-A' ? 'Todas las PDU-A' : 'Todas las PDU-B'],
+      [tr('insp.ups.mode'), testing ? tr('insp.ups.battTest') : tr('insp.ups.online'), testing ? 'warn' : ''],
+      [tr('insp.ups.input'), tr('insp.ups.inputVal')],
+      [tr('insp.ups.load'), fmtPct(u.load)],
+      [tr('insp.ups.batt'), fmtPct(Math.round(u.batt))],
+      [tr('insp.ups.runtime'), testing ? '19 min' : '22 min'],
+      [tr('insp.ups.feeds'), tr(id === 'UPS-A' ? 'insp.ups.allA' : 'insp.ups.allB')],
     ];
     const obs = [];
-    if (testing) obs.push({ id: 'obs:upsa-test', warn: true, text: 'Pantalla: «Battery test in progress». Entrada de red: 221 V, normal.' });
-    else obs.push({ id: 'obs:' + id.toLowerCase() + '-ok', text: `${id} en línea, sin alarmas.` });
-    return { title: id, sub: 'Sistema de alimentación ininterrumpida', readings, obs };
+    if (testing) obs.push(O('obs:upsa-test', 'upsTest', null, true));
+    else obs.push(O('obs:' + id.toLowerCase() + '-ok', 'upsOk', { id }));
+    return done(id, msg('insp.ups.sub'), readings, obs);
   }
   if (kind === 'leak') {
     const a = w.leak.active;
-    const readings = [['Sensor de fuga · Zona 3', a ? 'ALARMA' : 'Normal', a ? 'bad' : ''], ['Ubicación', 'Bajo el piso, junto a CRAC-1']];
+    const readings = [[tr('insp.leak.sensor'), a ? tr('insp.leak.alarm') : tr('insp.leak.normal'), a ? 'bad' : ''], [tr('insp.leak.location'), tr('insp.leak.locationVal')]];
     const obs = [];
     if (a && w.flags.tileLifted) {
-      obs.push({ id: 'obs:leak-water', warn: true, text: 'Bajo la baldosa hay agua: viene de la bandeja de condensado de CRAC-1.' });
-      obs.push({ id: 'obs:leak-cables', warn: true, text: 'La canalización de energía pasa a unos 40 cm del agua.' });
-      if (w.leak.contained) obs.push({ id: 'obs:leak-contained', text: 'Material absorbente colocado: el agua ya no avanza.' });
-    } else if (a) obs.push({ id: 'obs:leak-closed', warn: true, text: 'El sensor marca líquido, pero desde arriba no se ve: hay que levantar la baldosa para ver el origen.' });
-    else obs.push({ id: 'obs:leak-ok', text: 'Piso técnico seco.' });
-    return { title: 'Detección de fugas', sub: 'Cable sensor bajo el piso técnico', readings, obs };
+      obs.push(O('obs:leak-water', 'leakWater', null, true));
+      obs.push(O('obs:leak-cables', 'leakCables', null, true));
+      if (w.leak.contained) obs.push(O('obs:leak-contained', 'leakContained'));
+    } else if (a) obs.push(O('obs:leak-closed', 'leakClosed', null, true));
+    else obs.push(O('obs:leak-ok', 'leakOk'));
+    return done(msg('insp.leak.title'), msg('insp.leak.sub'), readings, obs);
   }
   if (kind === 'device') {
     const [rackId, name] = id.split('/');
@@ -459,13 +469,13 @@ export function inspect(w, kind, id) {
     });
     if (info.mgmt === 'ipmi' && st !== 'down') {
       const inlet = d.u >= 32 ? rackMaxInlet(w, rackId) : rk.temp;
-      readings.push([tr('device.inlet'), fmt1(inlet + 0.6) + ' °C', cls(inlet + 0.6)]);
+      readings.push([tr('device.inlet'), C(inlet + 0.6), cls(inlet + 0.6)]);
     }
     const obs = [];
-    if (d.name === 'k8s-n7' && w.flags.n7psu === 'BB') obs.push({ id: 'obs:r06-psu', warn: true, text: 'k8s-n7 (U23–U24): PSU1 → PDU-B y PSU2 → PDU-B.' });
-    if (d.name === 'fw-01' && w.flags.cable) obs.push({ id: 'obs:r02-cable', warn: true, text: 'Cable de consola azul conectado al puerto de consola de fw-01; no figura en el inventario del rack.' });
-    if (d.name === 'stg-02' && w.flags.techInRoom) obs.push({ id: 'obs:r07-tech', text: 'Técnico de Austral Storage Services (credencial P-0412) reemplazando el disco 3 de stg-02. El equipo sigue encendido.' });
-    return { title: name, sub: tr('device.sub', { rack: rackId, range }), readings, obs, rack: rackId };
+    if (d.name === 'k8s-n7' && w.flags.n7psu === 'BB') obs.push(O('obs:r06-psu', 'r06Psu', null, true));
+    if (d.name === 'fw-01' && w.flags.cable) obs.push(O('obs:r02-cable', 'r02Cable', null, true));
+    if (d.name === 'stg-02' && w.flags.techInRoom) obs.push(O('obs:r07-tech', 'r07Tech'));
+    return done(name, msg('device.sub', { rack: rackId, range }), readings, obs, { rack: rackId });
   }
   if (kind === 'pdu') {
     const [rackId, b] = id.split('/');
@@ -475,19 +485,27 @@ export function inspect(w, kind, id) {
     const fed = def.devices.filter((d) => psuBranches(w, rackId, d).includes(b)).map((d) => d.name);
     const readings = [
       [tr('pdu.state'), on ? tr('pdu.on') : tr('pdu.tripped'), on ? '' : 'bad'],
-      [tr('pdu.load'), Math.round(load) + ' %', load >= 80 ? 'bad' : load >= 60 ? 'warn' : ''],
+      [tr('pdu.load'), fmtPct(Math.round(load)), load >= 80 ? 'bad' : load >= 60 ? 'warn' : ''],
       [tr('pdu.feed'), b === 'A' ? 'UPS-A' : 'UPS-B'],
       [tr('pdu.devices'), fed.join(', ') || '—'],
     ];
     const obs = [];
-    if (rackId === 'R06') obs.push({ id: 'obs:r06-pdu', warn: w.racks.R06.pduB >= 80, text: `Pantallas de las PDU: A ${Math.round(w.racks.R06.pduA)} % · B ${w.flags.breaker ? 'disparada' : Math.round(w.racks.R06.pduB) + ' %'}.` });
-    return { title: `PDU-${b} · ${rackId}`, sub: tr('pdu.sub'), readings, obs, rack: rackId };
+    if (rackId === 'R06') obs.push(r06PduObs(w));
+    return done(`PDU-${b} · ${rackId}`, msg('pdu.sub'), readings, obs, { rack: rackId });
   }
   if (kind === 'acs') {
-    return { title: 'Lector de acceso · Sala A', sub: 'Control de acceso, detección de humo y extintores junto a la puerta', readings: [['Lector de acceso', 'Operando'], ['VESDA (detección de humo)', 'Normal · sin alarmas'], ['Extintor de CO₂', 'Carga vencida (09/2026)', 'warn']], obs: [{ id: 'obs:fire-ext', warn: true, text: 'El extintor de CO₂ junto a la puerta tiene la carga vencida desde 09/2026.' }, { id: 'obs:vesda-ok', text: 'Panel VESDA en estado normal, sin alarmas ni fallas de flujo.' }], link: 'accesos' };
+    const readings = [[tr('insp.acs.reader'), tr('insp.acs.readerVal')], [tr('insp.acs.vesda'), tr('insp.acs.vesdaVal')], [tr('insp.acs.ext'), tr('insp.acs.extVal'), 'warn']];
+    return done(msg('insp.acs.title'), msg('insp.acs.sub'), readings, [O('obs:fire-ext', 'fireExt', null, true), O('obs:vesda-ok', 'vesdaOk')], { link: 'accesos' });
   }
   return null;
 }
+
+/** Pantallas de las PDU de R06 (aparece en la ficha del rack y en la de cada PDU). */
+function r06PduObs(w) {
+  const r = w.racks.R06;
+  return O('obs:r06-pdu', 'r06Pdu', { a: pct(Math.round(r.pduA)), b: w.flags.breaker ? msg('insp.obs.tripped') : pct(Math.round(r.pduB)) }, r.pduB >= 80);
+}
+
 
 function cls(v) { return v >= 30 ? 'bad' : v >= 27 ? 'warn' : ''; }
 

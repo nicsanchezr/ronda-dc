@@ -13,6 +13,7 @@ export default defineConfig({
   reporter: CI ? [['list'], ['github']] : 'list',
   use: {
     viewport: { width: 1440, height: 900 },
+    locale: 'es-CL', // idioma inicial de la app = el del navegador; las pruebas en inglés lo cambian
     ...(CI
       ? { launchOptions: { args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'] } }
       : { channel: 'msedge' }),

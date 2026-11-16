@@ -57,7 +57,8 @@ header{display:flex;align-items:center;gap:14px;padding:8px 14px;border-bottom:1
 #endbtn,#setbtn{background:var(--btn2);color:var(--btn2-ink);border:0;border-radius:7px;padding:7px 11px;cursor:pointer;font-size:13px;font-weight:600}
 input[type=search],#search{background:var(--input);border:1px solid var(--line);color:var(--txt);border-radius:7px;padding:7px 10px;width:150px;font:inherit;font-size:13.5px}
 /* ajustes de tema */
-.settings{position:relative}
+.settings{position:relative;display:flex;align-items:center;gap:8px}
+.langsel button{padding:4px 7px;font-size:12.5px;letter-spacing:.04em}
 #setpop{position:absolute;right:0;top:calc(100% + 8px);z-index:45;width:300px;background:var(--glass);border:1px solid var(--line);border-radius:10px;box-shadow:0 14px 40px var(--shadow);padding:12px;display:grid;gap:8px;--px:0px;--py:-8px}
 #setpop .sh{font:600 12px var(--head);letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}
 .themeopt{display:flex;gap:8px;align-items:flex-start;padding:8px 9px;border:1px solid var(--line2);border-radius:8px;cursor:pointer;background:var(--panel)}
@@ -309,6 +310,7 @@ body[data-mode2=ronda] #clockwrap .seg,body[data-mode2=ronda] #shiftbar{display:
     </div>
   </div>
   <div class="settings">
+    <div class="seg langsel" role="group" aria-label="Idioma" data-i18n-attr="aria-label:lang.label"><button type="button" data-lang="es" lang="es" title="Español" aria-label="Español">ES</button><button type="button" data-lang="en" lang="en" title="English" aria-label="English">EN</button></div>
     <button id="setbtn" aria-haspopup="dialog" aria-expanded="false" aria-controls="setpop" data-i18n-attr="title:settings.title;aria-label:settings.title">◐ <span data-i18n="settings.button">Tema</span></button>
     <div id="setpop" role="dialog" aria-labelledby="setpop-t" hidden>
       <div class="sh" id="setpop-t" data-i18n="settings.theme">Tema</div>

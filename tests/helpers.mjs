@@ -105,3 +105,45 @@ export async function continueShift(page) {
   await page.click('#modalbox [data-act="close-modal"] >> nth=-1');
   await expect(page.locator('#modal')).toBeHidden();
 }
+
+// ---------- Partida perfecta (src/perfect-run.js, la misma que ejecuta la Demo) ----------------
+import { PERFECT } from '../src/perfect-run.js';
+import { DICTS } from '../src/i18n/index.js';
+
+/** Abre el turno en el idioma indicado (guardado en localStorage antes de cargar). */
+export async function openGameIn(page, lang, opts = {}) {
+  await page.addInitScript((l) => localStorage.setItem('ronda-dc-idioma', l), lang);
+  await openGame(page, opts);
+}
+
+/** Resuelve un evento con la solución de referencia. Devuelve el puntaje del ticket. */
+export async function playEvent(page, incId, lang = 'es') {
+  let pts = null;
+  for (const st of PERFECT[incId]) {
+    if (st.open) await openTicket(page, incId);
+    else if (st.tab) await tab(page, st.tab);
+    else if (st.inspect) await inspect(page, ...st.inspect);
+    else if (st.attach) await attach(page, st.attach);
+    else if (st.field) await doField(page, ...st.field);
+    else if (st.auth) await requestAuth(page, ...st.auth);
+    else if (st.wait) await step(page, st.wait);
+    else if (st.close) {
+      await tab(page, 'tickets'); await openTicket(page, incId);
+      pts = await closeTicket(page, { ...st.close, note: DICTS[lang].demo.note[incId] });
+      await continueShift(page);
+    }
+    // st.rack: solo la Demo (vista de detalle del rack)
+  }
+  return pts;
+}
+
+/** Juega todos los eventos del turno abierto, cada uno apenas salta su alerta. */
+export async function playPerfect(page, lang = 'es') {
+  const { sched } = await state(page);
+  const scores = {};
+  for (const id of Object.keys(sched).sort((a, b) => sched[a] - sched[b])) {
+    await stepTo(page, sched[id] + 0.05);
+    scores[id] = await playEvent(page, id, lang);
+  }
+  return scores;
+}

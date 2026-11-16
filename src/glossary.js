@@ -1,32 +1,40 @@
 // Glosario: marcado automático de términos en textos y tooltip accesible (mouse, teclado y toque).
-import GLOSARIO from './i18n/glosario.es.js';
-import { t } from './i18n/index.js';
+// Un glosario por idioma (mismos ids); las expresiones de búsqueda se arman una vez por idioma.
+import GL_ES from './i18n/glosario.es.js';
+import GL_EN from './i18n/glosario.en.js';
+import { t, lang } from './i18n/index.js';
 
-export const GLOSSARY = GLOSARIO;
+export const GLOSSARIES = { es: GL_ES, en: GL_EN };
+/** Glosario del idioma activo. */
+export const glossary = () => GLOSSARIES[lang] || GL_ES;
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // Siglas en mayúsculas (U, PDU, P1…) se comparan respetando mayúsculas; el resto, sin distinguirlas.
-const forms = [];
-for (const g of GLOSARIO) for (const f of [g.term, ...(g.aliases || [])]) {
-  const acronym = /[A-Z]/.test(f) && f === f.toUpperCase();
-  forms.push({ f, id: g.id, acronym });
+const cache = {};
+function matcher() {
+  if (cache[lang]) return cache[lang];
+  const forms = [];
+  for (const g of glossary()) for (const f of [g.term, ...(g.aliases || [])]) {
+    const acronym = /[A-Z]/.test(f) && f === f.toUpperCase();
+    forms.push({ f, id: g.id, acronym });
+  }
+  forms.sort((a, b) => b.f.length - a.f.length);
+  const build = (list, flags) => list.length ? new RegExp(`(?<![\\p{L}\\p{N}])(${list.map((x) => reEsc(x.f)).join('|')})(?![\\p{L}\\p{N}])`, flags) : null;
+  const idOf = (m) => {
+    const exact = forms.find((x) => x.acronym && x.f === m);
+    if (exact) return exact.id;
+    const lower = m.toLocaleLowerCase(lang);
+    const hit = forms.find((x) => !x.acronym && x.f.toLocaleLowerCase(lang) === lower);
+    return hit ? hit.id : null;
+  };
+  return (cache[lang] = { RE_CS: build(forms.filter((x) => x.acronym), 'gu'), RE_CI: build(forms.filter((x) => !x.acronym), 'giu'), idOf });
 }
-forms.sort((a, b) => b.f.length - a.f.length);
-const build = (list, flags) => list.length ? new RegExp(`(?<![\\p{L}\\p{N}])(${list.map((x) => reEsc(x.f)).join('|')})(?![\\p{L}\\p{N}])`, flags) : null;
-const RE_CS = build(forms.filter((x) => x.acronym), 'gu');
-const RE_CI = build(forms.filter((x) => !x.acronym), 'giu');
-const idOf = (m) => {
-  const exact = forms.find((x) => x.acronym && x.f === m);
-  if (exact) return exact.id;
-  const lower = m.toLocaleLowerCase('es');
-  const hit = forms.find((x) => !x.acronym && x.f.toLocaleLowerCase('es') === lower);
-  return hit ? hit.id : null;
-};
 
 /** Marca la primera aparición de cada término en un texto ya escapado (sin etiquetas). */
 export function linkify(escaped) {
   if (!escaped) return escaped;
+  const { RE_CS, RE_CI, idOf } = matcher();
   const seen = new Set();
   const spans = [];
   for (const re of [RE_CS, RE_CI]) {
@@ -55,7 +63,7 @@ export function initGlossaryTip(onOpenEntry) {
   document.body.appendChild(tip);
   let current = null, hideT = null, pinned = false;
   const show = (el, pin = false) => {
-    const g = GLOSARIO.find((x) => x.id === el.dataset.gl); if (!g) return;
+    const g = glossary().find((x) => x.id === el.dataset.gl); if (!g) return;
     clearTimeout(hideT);
     current = el; pinned = pin;
     tip.innerHTML = `<b>${esc(g.term)}</b><p>${esc(g.def)}</p><p class="ex"><span>${t('glossary.example')}</span> ${esc(g.example)}</p><p class="ref">${esc(g.ref)}</p><button type="button" class="link" data-glopen="${g.id}">${t('glossary.open')}</button>`;
