@@ -1,4 +1,4 @@
-import { INCIDENTS, NOISE, ACCESS, CALENDAR, RUNBOOKS, ESCALATIONS, CLASSES, PRIORITIES, SEV, SHIFT, RACKS, CLIENTS, FIELD_ACTIONS, LEVELS, schedFor, TUTORIAL } from './scenario.js';
+import { INCIDENTS, NOISE, ACCESS, CALENDAR, RUNBOOKS, ESCALATIONS, CLASSES, PRIORITIES, SEV, SHIFT, RACKS, CLIENTS, FIELD_ACTIONS, LEVELS, schedFor, TUTORIAL, DURATIONS, durationOf } from './scenario.js';
 import { createWorld, step, startIncident, applyClose, inspect, rackSeverity, clock, fmt1, TOTAL_DEVICES, rackMaxInlet, fieldAvailable, fieldActionsFor, requestAuth, doField, fieldById } from './sim.js';
 import { scoreTicket as scoreCore, actionStatus, LEVEL_RULES } from './scoring.js';
 import { createScene } from './scene3d.js';
@@ -17,9 +17,9 @@ const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 let S;
-function freshState(level = 'normal') {
+function freshState(level = 'normal', duration = 'completo') {
   return {
-    world: createWorld(schedFor(level)), running: false, speed: 1, mode: 'estado', tab: 'monitoreo',
+    world: createWorld(schedFor(level, duration)), duration, shiftLen: durationOf(duration).length, running: false, speed: 1, mode: 'estado', tab: 'monitoreo',
     tickets: [], active: null, started: new Set(), sel: null, ended: false, modal: false,
     notes: [], lastMinute: -1, seenSys: 0, begun: false,
     level, seen: {}, seenFirst: {}, act: null, confirm: null, consulta: 'runbooks', glFocus: null, tut: null, tutorHidden: false,
@@ -78,6 +78,7 @@ function advance(dt) {
     const d = Math.min(0.25, left);
     step(w, d); left -= d;
     for (const inc of INCIDENTS) {
+      if (w.sched[inc.id] === undefined) continue; // no incluido en esta duración
       if (!S.started.has(inc.id) && w.t >= w.sched[inc.id]) {
         S.started.add(inc.id);
         const at = w.sched[inc.id];
@@ -108,7 +109,7 @@ function advance(dt) {
       const a = w.sysAlerts[S.seenSys++];
       toast(`<b>${esc(SEV[a.sev].label)}</b> · ${esc(a.host)}<br>${esc(a.text)}`, a.sev);
     }
-    if (w.t >= SHIFT.length) { endShift(); return; }
+    if (w.t >= S.shiftLen) { endShift(); return; }
   }
 }
 
@@ -125,17 +126,25 @@ function tickUI() {
   const w = S.world;
   $('#clock').textContent = clock(w.t);
   if (S.act) { const ap = $('#actprog'); if (ap) { ap.textContent = t('field.progressShort', { n: Math.min(S.act.fa.min, Math.floor(w.t - S.act.start)), m: S.act.fa.min }); ap.title = S.act.fa.verb; } renderInspector(); }
-  $('#shiftbar i').style.width = Math.min(100, (w.t / SHIFT.length) * 100) + '%';
+  $('#shiftbar i').style.width = Math.min(100, (w.t / S.shiftLen) * 100) + '%';
   scene.update(w, S.mode, sevMap());
   const m = Math.floor(w.t);
   if (m !== S.lastMinute) { S.lastMinute = m; renderPanel(); renderInspector(); renderSummary(); }
 }
 
+const includedIncidents = () => INCIDENTS.filter((i) => S.world.sched[i.id] !== undefined);
+/** ⏭: adelanta al fin de la acción en curso o al siguiente evento (o al fin del turno). */
 function skipToNext() {
-  if (openTickets().length) { toast(t('ticket.openFirst')); return; }
-  const next = INCIDENTS.filter((i) => !S.started.has(i.id)).sort((a, b) => S.world.sched[a.id] - S.world.sched[b.id])[0];
-  const target = next ? S.world.sched[next.id] : SHIFT.length;
-  const dt = Math.max(0, target - S.world.t);
+  if (S.ended || !S.begun || S.modal) return;
+  const w = S.world;
+  let target;
+  if (S.act) target = S.act.end;
+  else {
+    const next = includedIncidents().filter((i) => !S.started.has(i.id)).sort((a, b) => w.sched[a.id] - w.sched[b.id])[0];
+    target = next ? w.sched[next.id] : S.shiftLen;
+    if (openTickets().length) toast(t(S.level === 'guiado' ? 'skip.warnGuided' : 'skip.warn'));
+  }
+  const dt = Math.max(0, target - w.t);
   if (dt <= 0) return;
   advance(dt + 0.01);
   tickUI(); S.lastMinute = -1; tickUI();
@@ -608,11 +617,12 @@ function closeModal() { $('#modal').hidden = true; S.modal = false; lastTs = per
 function metrics() {
   const closed = S.tickets.filter((x) => x.closedAt != null);
   const avg = (a) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0);
-  const pts = INCIDENTS.reduce((s, inc) => { const x = S.tickets.find((k) => k.inc.id === inc.id); return s + (x && x.result ? x.result.total : 0); }, 0);
+  const incs = includedIncidents();
+  const pts = incs.reduce((s, inc) => { const x = S.tickets.find((k) => k.inc.id === inc.id); return s + (x && x.result ? x.result.total : 0); }, 0);
   const bonus = S.tickets.reduce((s, x) => s + (x.result ? x.result.bonus || 0 : 0), 0);
-  const avail = 1 - S.world.downMinutes / (TOTAL_DEVICES * SHIFT.length);
+  const avail = 1 - S.world.downMinutes / (TOTAL_DEVICES * S.shiftLen);
   const slaOk = closed.filter((x) => !x.result.pen && !x.proactive).length;
-  return { closed: closed.length, total: INCIDENTS.length, pts, bonus, max: INCIDENTS.length * 100, mtta: avg(closed.map((x) => x.result.ackT)), mttr: avg(closed.map((x) => x.result.resT)), avail, slaOk, maxTemp: S.world.maxTemp, impacts: S.world.impacts };
+  return { closed: closed.length, total: incs.length, pts, bonus, max: incs.length * 100, mtta: avg(closed.map((x) => x.result.ackT)), mttr: avg(closed.map((x) => x.result.resT)), avail, slaOk, maxTemp: S.world.maxTemp, impacts: S.world.impacts };
 }
 
 function saveLastRun(data) {
@@ -633,7 +643,7 @@ function endShift() {
   if (S.ended) return;
   S.ended = true; S.running = false;
   const m = metrics();
-  saveLastRun({ pts: m.pts, bonus: m.bonus, max: m.max, level: S.level, fecha: new Date().toISOString().slice(0, 10) });
+  saveLastRun({ pts: m.pts, bonus: m.bonus, max: m.max, level: S.level, duration: S.duration, fecha: new Date().toISOString().slice(0, 10) });
   const pct = Math.min(100, Math.round(((m.pts + m.bonus) / m.max) * 100));
   const levels = t('end.levels');
   const nivel = levels[pct >= 85 ? 0 : pct >= 65 ? 1 : pct >= 40 ? 2 : 3];
@@ -652,7 +662,7 @@ function endShift() {
     </div>
     ${m.impacts.length ? `<h3>${t('end.impactsTitle')}</h3><ul class="imp">${m.impacts.map((i) => `<li><span class="mono">${clock(i.t)}</span> ${esc(i.text)}</li>`).join('')}</ul>` : `<p class="good">${t('end.noImpacts')}</p>`}
     <h3>${t('end.tickets')}</h3>
-    <table class="rev">${INCIDENTS.map((inc) => { const x = S.tickets.find((k) => k.inc.id === inc.id); return `<tr><td class="mono">${x ? x.id : '—'}</td><td>${esc(inc.title)}</td><td>${!x ? t('end.notHappened') : x.result ? x.result.total + ' pts' : `<span class="bad">${t('end.notClosed')}</span>`}</td><td>${x && x.result ? `<button class="link" data-act="review" data-tk="${x.id}">${t('end.reviewLink')}</button>` : ''}</td></tr>`; }).join('')}</table>
+    <table class="rev">${includedIncidents().map((inc) => { const x = S.tickets.find((k) => k.inc.id === inc.id); return `<tr><td class="mono">${x ? x.id : '—'}</td><td>${esc(inc.title)}</td><td>${!x ? t('end.notHappened') : x.result ? x.result.total + ' pts' : `<span class="bad">${t('end.notClosed')}</span>`}</td><td>${x && x.result ? `<button class="link" data-act="review" data-tk="${x.id}">${t('end.reviewLink')}</button>` : ''}</td></tr>`; }).join('')}</table>
     <h3>${t('end.handover')}</h3>
     <p class="muted small">${t('end.handoverHint')}</p>
     <textarea id="relevo" rows="4" placeholder="${t('end.handoverPh')}"></textarea>
@@ -781,9 +791,10 @@ function updateSpeedUI() {
   $('#clockwrap').classList.toggle('paused', !S.running);
 }
 
-function boot(level = (S && S.level) || 'normal') {
+function boot(level = (S && S.level) || 'normal', duration = (S && S.duration) || 'completo') {
   if (scene.detail) scene.exitRack();
-  S = freshState(level);
+  S = freshState(level, duration);
+  $('#shiftbar').title = t('header.shiftBarDyn', { end: clock(S.shiftLen) });
   document.body.dataset.level = level;
   const lb = $('#levelbadge'); if (lb) lb.textContent = t('levels.' + level);
   S.lastMinute = -1;
@@ -857,7 +868,7 @@ function showLanding(soon) {
   scene.setLanding(true);
   $('#turnobtn').textContent = t(S.begun && !S.ended ? 'landing.turnoContinue' : 'landing.turnoStart');
   renderLevelPicker();
-  if (S.begun && !S.ended) $('#turnobtn').setAttribute('href', '#turno/' + S.level);
+  if (S.begun && !S.ended) $('#turnobtn').setAttribute('href', '#turno/' + S.level + '/' + S.duration);
   renderLastRun();
   document.querySelectorAll('[data-modecard]').forEach((c) => c.classList.toggle('hl', c.dataset.modecard === soon));
   const note = $('#soonnote');
@@ -874,28 +885,34 @@ function enterTurno() {
   $('header').appendChild($('.settings'));
   for (const el of [$('header'), $('aside')]) { el.classList.remove('entering'); void el.offsetWidth; el.classList.add('entering'); el.addEventListener('animationend', () => el.classList.remove('entering'), { once: true }); }
   scene.setLanding(false, () => {
-    if (!S.begun) panelShow($('#briefing'), 'brief');
+    if (!S.begun) { $('#briefing .lead').innerHTML = t(S.duration === 'corto' ? 'intro.leadShort' : 'intro.lead'); panelShow($('#briefing'), 'brief'); }
     else if (S.tut && S.tut.active) renderCoach();
     else if (S.ended) $('#end').hidden = false;
     else { S.running = true; lastTs = performance.now(); updateSpeedUI(); }
   });
 }
-const LEVEL_KEY = 'ronda-dc-nivel';
+const LEVEL_KEY = 'ronda-dc-nivel', DUR_KEY = 'ronda-dc-duracion';
 function chosenLevel() { try { return localStorage.getItem(LEVEL_KEY) || 'normal'; } catch (e) { return 'normal'; } }
+function chosenDuration() { try { return localStorage.getItem(DUR_KEY) || 'corto'; } catch (e) { return 'corto'; } }
 function renderLevelPicker() {
   const lv = chosenLevel();
   document.querySelectorAll('[data-level]').forEach((b) => { b.classList.toggle('on', b.dataset.level === lv); b.setAttribute('aria-pressed', b.dataset.level === lv); });
   $('#leveldesc').textContent = t('levels.' + lv + 'Desc');
-  $('#turnobtn').setAttribute('href', '#turno/' + lv);
+  const du = chosenDuration();
+  document.querySelectorAll('[data-duration]').forEach((b) => { b.classList.toggle('on', b.dataset.duration === du); b.setAttribute('aria-pressed', b.dataset.duration === du); });
+  $('#turnotime').textContent = t('durations.' + du + 'Desc');
+  $('#turnobtn').setAttribute('href', '#turno/' + lv + '/' + du);
 }
+document.querySelectorAll('[data-duration]').forEach((b) => b.addEventListener('click', () => { try { localStorage.setItem(DUR_KEY, b.dataset.duration); } catch (e) { /* sin almacenamiento */ } renderLevelPicker(); }));
 document.querySelectorAll('[data-level]').forEach((b) => b.addEventListener('click', () => { try { localStorage.setItem(LEVEL_KEY, b.dataset.level); } catch (e) { /* sin almacenamiento */ } renderLevelPicker(); }));
 
 function route() {
   const h = location.hash.replace(/^#\/?/, '');
-  const [r0, r1] = h.split('/');
+  const [r0, r1, r2] = h.split('/');
   if (r0 === 'turno') {
     const lv = LEVELS.some((l) => l.id === r1) ? r1 : 'normal';
-    if (!S.begun && S.level !== lv) { boot(lv); }
+    const du = DURATIONS.some((d) => d.id === r2) ? r2 : 'completo';
+    if (!S.begun && (S.level !== lv || S.duration !== du)) boot(lv, du);
     enterTurno();
   }
   else showLanding(SOON.includes(h) ? h : null);
@@ -909,7 +926,7 @@ if (/[?&]test\b/.test(location.search)) {
     state() {
       const w = S.world;
       return {
-        t: w.t, level: S.level, act: S.act ? S.act.fa.id : null, impacts: w.impacts.map((i) => i.text), done: Object.keys(w.done),
+        t: w.t, level: S.level, duration: S.duration, shiftLen: S.shiftLen, act: S.act ? S.act.fa.id : null, impacts: w.impacts.map((i) => i.text), done: Object.keys(w.done),
         tickets: S.tickets.map((x) => ({ id: x.id, inc: x.inc.id, proactive: !!x.proactive, closed: x.closedAt != null, total: x.result ? x.result.total : null, bonus: x.result ? x.result.bonus : 0, evidence: x.evidence.map((e) => e.id) })),
         ended: S.ended,
       };

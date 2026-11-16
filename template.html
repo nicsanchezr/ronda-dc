@@ -196,7 +196,7 @@ header{--px:0px;--py:-12px;position:relative;z-index:35}aside{--px:24px;--py:0px
 .lh{font:600 14px var(--head);letter-spacing:.09em;text-transform:uppercase;color:var(--mut);margin:14px 0 8px}
 .soonnote{margin:6px 0 0;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--glass);max-width:62ch}
 .modecards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.modecard{display:grid;grid-template-rows:auto 1fr auto auto auto;gap:10px;background:var(--glass);border:1px solid var(--line);border-radius:10px;padding:16px;box-shadow:0 8px 28px var(--shadow)}
+.modecard{display:grid;grid-template-rows:auto 1fr auto auto auto auto;gap:10px;background:var(--glass);border:1px solid var(--line);border-radius:10px;padding:16px;box-shadow:0 8px 28px var(--shadow)}
 .modecard .mch{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .modecard h3{margin:0;font:600 21px var(--head);letter-spacing:.03em}
 .modecard p{margin:0;font-size:14.5px}
@@ -385,7 +385,8 @@ body[data-level=experto] .obs.w{box-shadow:none}
         <article class="modecard" data-modecard="turno">
           <div class="mch"><h3 data-i18n="landing.turnoTitle"></h3><span class="chip done" data-i18n="landing.available"></span></div>
           <p data-i18n="landing.turnoDesc"></p>
-          <div class="mct mono">⏱ <span data-i18n="landing.turnoTime"></span></div>
+          <div class="mct mono">⏱ <span id="turnotime" data-i18n="landing.turnoTime"></span></div>
+          <div class="lvl"><div class="seg" role="group" aria-label="Duración" data-i18n-attr="aria-label:durations.title"><button type="button" data-duration="corto" data-i18n="durations.corto">Corto</button><button type="button" data-duration="completo" data-i18n="durations.completo">Completo</button></div></div>
           <div class="lvl"><div class="seg" role="group" aria-label="Nivel" data-i18n-attr="aria-label:levels.title"><button type="button" data-level="guiado" data-i18n="levels.guiado">Guiado</button><button type="button" data-level="normal" data-i18n="levels.normal">Normal</button><button type="button" data-level="experto" data-i18n="levels.experto">Experto</button></div><p class="muted small" id="leveldesc"></p></div>
           <a class="btn" href="#turno" id="turnobtn" data-i18n="landing.turnoStart">Comenzar turno</a>
         </article>

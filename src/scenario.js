@@ -78,9 +78,20 @@ export const LEVELS = [
   { id: 'normal', sched: {} },
   { id: 'experto', sched: { E6: 185, E8: 340 } }, // CRAC-2 falla durante la autoprueba de UPS-A; la puerta de R02, con la fuga activa
 ];
-export const schedFor = (level) => {
+// Duraciones del modo Turno. Corto: 4 eventos de 08:00 a 10:30 (unos 12 min reales a 1×),
+// con uno benigno (E1), uno de flujo de aire con acción física (E3), uno crítico (E6) y la fuga (E7).
+export const DURATIONS = [
+  { id: 'corto', events: ['E1', 'E3', 'E6', 'E7'], length: 150, sched: { E1: 10, E3: 35, E6: 75, E7: 110 }, experto: { E6: 45 } },
+  { id: 'completo', events: null, length: 420, sched: {}, experto: null },
+];
+export const durationOf = (id) => DURATIONS.find((d) => d.id === id) || DURATIONS[1];
+/** Minuto de inicio de cada evento incluido según el nivel y la duración (los no incluidos no aparecen). */
+export const schedFor = (level, duration = 'completo') => {
   const L = LEVELS.find((l) => l.id === level) || LEVELS[1];
-  return Object.fromEntries(INCIDENTS.map((i) => [i.id, L.sched[i.id] ?? i.at]));
+  const D = durationOf(duration);
+  const inc = INCIDENTS.filter((i) => !D.events || D.events.includes(i.id));
+  const lvl = D.events ? (level === 'experto' && D.experto ? D.experto : {}) : L.sched;
+  return Object.fromEntries(inc.map((i) => [i.id, lvl[i.id] ?? D.sched[i.id] ?? i.at]));
 };
 
 // Calendario de cambios y mantenimientos del día
@@ -213,7 +224,7 @@ export const FIELD_ACTIONS = [
 
 // Tutorial interactivo de la interfaz (nivel Guiado, antes del primer evento).
 // until: 'run' (pulsa ▶) · 'next' (botón) · 'rack' (inspecciona un rack) · 'glossary' (abre un término) · 'done' (termina)
-export const TUTORIAL = [{"target": "#clockwrap", "text": "Este es el reloj del turno. Pulsa ▶ para que avance. En el nivel Guiado, el reloj espera mientras tengas un ticket abierto.", "until": "run"}, {"target": ".tabs button[data-tab=\"monitoreo\"]", "text": "Aquí llegan las alertas. Las de Advertencia o más abren un ticket automáticamente.", "until": "next"}, {"target": "#stage", "text": "Esta es la sala. Haz clic en un rack para inspeccionarlo; prueba con R01. Con doble clic lo ves de cerca, por delante y por detrás.", "until": "rack"}, {"target": "#inspector", "text": "Aquí ves lecturas y observaciones. El 📎 adjunta algo como evidencia del ticket activo; más abajo aparecen las acciones que puedes hacer en la sala.", "until": "next"}, {"target": "#inspector", "text": "Las palabras con subrayado punteado tienen definición: pasa el mouse o toca una (por ejemplo, IPMI). Todas están en Consulta → Glosario.", "until": "glossary"}, {"target": "#helpbtn", "text": "Si te pierdes, el botón ? repite las instrucciones. A las 08:10 llega tu primer evento y te acompañará un tutor paso a paso.", "until": "done"}];
+export const TUTORIAL = [{"target": "#clockwrap", "text": "Este es el reloj del turno. Pulsa ▶ para que avance; ⏭ adelanta al siguiente evento. En Guiado, el reloj espera mientras tengas un ticket abierto.", "until": "run"}, {"target": "#stage", "text": "Esta es la sala. Haz clic en un rack (prueba con R01): en el inspector verás lecturas, observaciones que puedes adjuntar como evidencia (📎) y acciones que puedes hacer en la sala.", "until": "rack"}, {"target": "#inspector", "text": "Las palabras con subrayado punteado tienen definición: pasa el mouse o toca una (por ejemplo, IPMI). Todas están en Consulta → Glosario.", "until": "glossary"}, {"target": "#helpbtn", "text": "El botón ? repite las instrucciones. Cuando llegue el primer evento, un tutor te acompañará paso a paso.", "until": "done"}];
 
 export const INCIDENTS = [
   {

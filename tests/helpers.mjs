@@ -16,9 +16,10 @@ export function trackErrors(page) {
 }
 
 /** Abre el turno (nivel opcional) y lo deja en pausa a las 08:00. */
-export async function openGame(page, { level = '', theme } = {}) {
+export async function openGame(page, { level = '', duration = '', theme } = {}) {
   if (theme) await page.addInitScript((th) => localStorage.setItem('ronda-dc-tema', JSON.stringify(th)), theme);
-  await page.goto(`${APP}?test#turno${level ? '/' + level : ''}`);
+  const route = duration ? `/${level || 'normal'}/${duration}` : level ? '/' + level : '';
+  await page.goto(`${APP}?test#turno${route}`);
   await expect(page.locator('#briefing')).toBeVisible();
   await page.click('#startbtn');
   if (level !== 'guiado') await page.click('#pause'); // en Guiado el turno empieza en pausa

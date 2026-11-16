@@ -8,15 +8,13 @@ test('TK-101 en Guiado: tutorial, pasos del tutor, pista, reflexión y correcci�
   const coach = page.locator('#coach');
   await expect(coach).toBeVisible();
 
-  // Tutorial de la interfaz
+  // Tutorial de la interfaz: 4 pasos y opción de saltarlo
+  await expect(coach).toContainText('Tutorial · 1/4');
+  await expect(coach.locator('[data-act="coach-skip"]')).toBeVisible();
   await expect(coach).toContainText('reloj');
   await page.click('#pause'); // ▶ reanuda (el reloj sigue retenido mientras dura el tutorial)
-  await expect(coach).toContainText('alertas');
-  await page.click('#coach [data-act="coach-next"]');
   await expect(coach).toContainText('R01');
   await inspect(page, 'rack', 'R01');
-  await expect(coach).toContainText('📎');
-  await page.click('#coach [data-act="coach-next"]');
   await expect(coach).toContainText('subrayado');
   await page.locator('#inspector .gl').first().hover();
   await expect(coach).toContainText('botón ?');

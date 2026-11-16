@@ -96,12 +96,13 @@ export function step(w, dt) {
 
   // E3 paneles ciegos faltantes en R08 → recirculación
   const r8 = w.racks.R08;
-  if (r8.gap && t > 40 && !w.freeze.E3) r8.top = Math.min(7, Math.max(r8.top, 0.12 * (t - 40)));
+  const r8start = (w.sched.E3 ?? 70) - 30; // la recirculación empieza 30 min antes de la alerta
+  if (r8.gap && t > r8start && !w.freeze.E3) r8.top = Math.min(7, Math.max(r8.top, 0.12 * (t - r8start)));
   else if (!r8.gap && r8.top > 0) r8.top = Math.max(0, r8.top - 0.3 * dt);
 
   // E4 carga de PDU-B en R06
   const r6 = w.racks.R06;
-  if (w.flags.n7psu === 'BB' && !w.flags.breaker && !w.freeze.E4) {
+  if (w.sched.E4 !== undefined && w.flags.n7psu === 'BB' && !w.flags.breaker && !w.freeze.E4) { // sin E4 en el turno, la carga no cambia
     const e4 = w.sched.E4;
     r6.pduB = Math.max(r6.pduB, t < e4 ? 77 + 0.06 * t * (110 / e4) : 84 + 0.17 * (t - e4));
     if (r6.pduB >= 96) {
