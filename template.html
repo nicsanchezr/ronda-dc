@@ -224,6 +224,25 @@ header{--px:0px;--py:-12px;position:relative;z-index:35}aside{--px:24px;--py:0px
 #helppop .hh{display:flex;justify-content:space-between;align-items:center}#helppop .hh b{font:600 16px var(--head)}
 #helppop ul{padding-left:18px;margin:8px 0;display:grid;gap:5px}
 #helppop .sh{font:600 12px var(--head);letter-spacing:.08em;text-transform:uppercase;color:var(--mut);margin-top:6px}
+/* acciones en sala */
+.falist{display:grid;gap:6px}
+.farow{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px}
+.fabtn{flex:1 1 100%;text-align:left;background:var(--btn2);color:var(--btn2-ink);border:1px solid var(--line2);border-radius:7px;padding:7px 10px;cursor:pointer;font-size:13.5px;font-weight:600}
+.fabtn:hover:not(:disabled){border-color:var(--acc)}.fabtn:disabled{opacity:.55;cursor:default}
+.faconf{display:grid;gap:8px;padding:9px 10px;border:1px solid var(--acc);border-radius:8px;background:var(--panel);font-size:13.5px}
+.faconf .fab{display:flex;gap:6px;justify-content:flex-end}.faconf .btn{padding:6px 12px}
+.faprog{position:relative;height:24px;border-radius:6px;background:var(--panel2);border:1px solid var(--line2);overflow:hidden;margin-bottom:6px;font-size:12.5px}
+.faprog i{position:absolute;inset:0 auto 0 0;background:var(--acc);opacity:.22}
+.faprog span{position:relative;display:block;padding:3px 8px;font-variant-numeric:tabular-nums}
+#actprog{font:600 12px var(--sans);color:var(--acc-text);white-space:nowrap}
+#flash{position:absolute;inset:0;background:var(--bg2);opacity:0;pointer-events:none;z-index:15}
+#flash.on{animation:flash .5s ease-out}
+@keyframes flash{0%{opacity:.85}100%{opacity:0}}
+.opt.auto{border-color:var(--line)}.opt em.auto{font-style:normal;font-size:12px;color:var(--good-text)}
+.acti{margin:0;padding-left:16px;display:grid;gap:3px}.acti em{font-style:normal;font-size:12px;color:var(--mut)}
+.acti .st-done em{color:var(--good-text)}.acti .st-notdone em,.acti .st-false em{color:var(--bad-text)}
+.escnote{margin-top:6px;padding:6px 8px;border-radius:6px;background:var(--panel2);color:var(--txt)}
+@media (prefers-reduced-motion:reduce){#flash.on{animation:none}}
 /* paneles: entrada y salida con deslizamiento y fundido (nunca de golpe) */
 #inspector{--px:-14px;--py:0px}#rackbar{--px:0px;--py:-10px}#rackleg,.hintbar,#legend{--px:0px;--py:10px}
 .entering{animation:panelIn .22s cubic-bezier(.2,.7,.2,1) both}
@@ -243,7 +262,7 @@ header{--px:0px;--py:-12px;position:relative;z-index:35}aside{--px:24px;--py:0px
   <div class="spacer"></div>
   <div class="modes" role="group" aria-label="Vista" data-i18n-attr="aria-label:header.viewGroup"><button data-mode="estado" class="on" data-i18n="header.modeState">Estado</button><button data-mode="calor" data-i18n="header.modeHeat">Calor</button></div>
   <input id="search" type="search" placeholder="Buscar host o rack…" aria-label="Buscar host o rack" data-i18n-attr="placeholder:header.search;aria-label:header.search">
-  <div id="clockwrap"><span id="clock" aria-live="off">08:00</span><div id="shiftbar" title="Avance del turno (08:00–15:00)" data-i18n-attr="title:header.shiftBar"><i></i></div>
+  <div id="clockwrap"><span id="clock" aria-live="off">08:00</span><span id="actprog" role="status" hidden></span><div id="shiftbar" title="Avance del turno (08:00–15:00)" data-i18n-attr="title:header.shiftBar"><i></i></div>
     <div class="seg"><button id="pause" aria-label="Pausar">❚❚</button><button data-speed="1" class="on">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button><button id="skip" title="Adelantar al siguiente evento (sin tickets abiertos)" aria-label="Adelantar al siguiente evento" data-i18n-attr="title:header.skip;aria-label:header.skipAria">⏭</button></div></div>
   <button id="endbtn" data-i18n="header.end">Terminar turno</button>
   <div class="helpwrap">
@@ -297,6 +316,7 @@ header{--px:0px;--py:-12px;position:relative;z-index:35}aside{--px:24px;--py:0px
       <span><i class="cord" style="background:var(--cord-a)"></i><span data-i18n="rackView.cordA">Rama A (UPS-A)</span></span>
       <span><i class="cord" style="background:var(--cord-b)"></i><span data-i18n="rackView.cordB">Rama B (UPS-B)</span></span>
     </div>
+    <div id="flash" aria-hidden="true"></div>
     <div id="briefing" class="card intro" role="dialog" aria-labelledby="brief-t" hidden>
       <div class="kicker" data-i18n="briefing.kicker">Briefing del turno</div>
       <h2 id="brief-t" data-i18n="intro.title">Tu primer turno como operador de sala de datacenter</h2>

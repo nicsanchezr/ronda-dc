@@ -355,8 +355,9 @@ export function createRackView(scene) {
       D.psus.forEach((p, i) => p.led.material.color.set(branchPowered(world, R.rackId, br[i]) ? R.T.led.on : (world.t < world.flags.powerCutUntil ? R.T.led.off : R.T.led.noin)));
     }
     for (const b of ['A', 'B']) drawPdu(R.pdus[b], b, pduLoad(world, R.rackId, b), branchPowered(world, R.rackId, b));
-    if (R.gapPanel) { R.gapPanel.visible = !rk.gap; R.gapGlow.visible = rk.gap; R.gapGlow.userData.edges.visible = rk.gap; }
-    R.hinge.rotation.y = rk.rearOpen ? -1.75 : 0;
+    if (R.gapPanel) { R.gapTarget = rk.gap ? 0.001 : 1; R.gapGlow.visible = rk.gap; R.gapGlow.userData.edges.visible = rk.gap; if (R.gapK === undefined) { R.gapK = R.gapTarget; R.gapPanel.scale.y = R.gapK; } }
+    R.hingeTarget = rk.rearOpen ? -1.75 : 0;
+    if (R.hingeInit === undefined) { R.hinge.rotation.y = R.hingeTarget; R.hingeInit = true; }
     if (R.consoleCable) R.consoleCable.visible = !!world.flags.cable;
     if (R.rackId === 'R04' && rk.sensorLoose) { R.sensor.position.set(RW / 2 + 0.03, 1.35, -0.25); R.sensor.rotation.z = 0.5; }
     else { R.sensor.position.set(RW / 2 - 0.06, 1.86, RD / 2 + 0.01); R.sensor.rotation.z = 0; }
@@ -364,6 +365,9 @@ export function createRackView(scene) {
 
   function animate(now) {
     if (!R) return;
+    const k = Math.min(1, Math.min(0.1, (now - (animate.prev || now)) / 1000) * 6); animate.prev = now;
+    if (R.hingeTarget !== undefined) R.hinge.rotation.y += (R.hingeTarget - R.hinge.rotation.y) * k;
+    if (R.gapPanel && R.gapTarget !== undefined) { R.gapK += (R.gapTarget - R.gapK) * k; R.gapPanel.scale.y = Math.max(0.001, R.gapK); R.gapPanel.visible = R.gapK > 0.01; }
     for (const name in R.devs) {
       const D = R.devs[name];
       if (!D.leds.act) continue;

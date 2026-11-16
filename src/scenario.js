@@ -146,9 +146,52 @@ export const RUNBOOKS = [
 ];
 
 // ---------------------------------------------------------------------------
+// Acciones en sala (se ejecutan desde el inspector o la ficha del objeto)
+//   on: objetos donde aparece el botón · min: minutos de juego que toma
+//   restricted: equipo de un cliente (requiere su autorización)
+//   auth: respuesta del cliente a la solicitud { grant, after (min) }
+//   inc: evento al que se asocia (para la bitácora, la evidencia y el escalamiento)
+//   authWhy: explicación en la corrección si la solicitud cuenta como escalamiento de más
+// La disponibilidad y el efecto de cada acción están en sim.js (fieldAvailable / doField).
+// ---------------------------------------------------------------------------
+export const FIELD_ACTIONS = [
+  { id: 'tech-escort', inc: 'E1', on: [{ kind: 'rack', id: 'R07' }], label: 'Acompañar al técnico', verb: 'Acompañando al técnico', min: 5 },
+  { id: 'stg02-off', inc: 'E1', on: [{ kind: 'device', id: 'R07/stg-02' }], label: 'Apagar stg-02', verb: 'Apagando stg-02', min: 2, restricted: true, auth: { grant: false, after: 5 },
+    authWhy: 'Pediste autorización al cliente para apagar stg-02. Preguntar antes de intervenir un equipo de un cliente es la actitud correcta, y por eso el juego lo registra como escalamiento al cliente. Aquí descuenta porque apagar stg-02 no era necesario: CHG-1042 estaba aprobado y el cambio de disco es en caliente, así que no había nada que pedirle al cliente. Antes de solicitar una intervención, pregúntate si hace falta.' },
+  { id: 'sensor-fix', inc: 'E2', on: [{ kind: 'rack', id: 'R04' }], label: 'Reubicar y fijar el sensor de entrada', verb: 'Reubicando el sensor', min: 3 },
+  { id: 'r04-hosts-off', inc: 'E2', on: [{ kind: 'rack', id: 'R04' }], label: 'Apagar los hosts de virtualización de R04', verb: 'Apagando los hosts de R04', min: 3, restricted: true, auth: { grant: false, after: 5 },
+    authWhy: 'Pediste autorización al cliente para apagar los hosts de R04. Preguntar antes de tocar equipos de un cliente está bien, y por eso cuenta como escalamiento al cliente; aquí descuenta porque no había un problema térmico real: era un sensor suelto. Antes de solicitar una intervención, confirma que el problema existe.' },
+  { id: 'crac-100', inc: 'E2', on: [{ kind: 'crac', id: 'CRAC-1' }, { kind: 'crac', id: 'CRAC-2' }], label: 'Llevar CRAC-1 y CRAC-2 al 100 %', verb: 'Ajustando los CRAC', min: 1 },
+  { id: 'blank-install', inc: 'E3', on: [{ kind: 'rack', id: 'R08' }], label: 'Instalar paneles ciegos en U30–U34', verb: 'Instalando paneles ciegos', min: 6 },
+  { id: 'setpoint-16', inc: 'E3', on: [{ kind: 'crac', id: 'CRAC-1' }, { kind: 'crac', id: 'CRAC-2' }], label: 'Bajar el setpoint de ambos CRAC a 16 °C', verb: 'Cambiando el setpoint', min: 1 },
+  { id: 'aisle-open', inc: 'E3', on: [{ kind: 'acs', id: 'ACS' }], label: 'Abrir la puerta del pasillo frío', verb: 'Abriendo el pasillo frío', min: 1 },
+  { id: 'psu-move', inc: 'E4', on: [{ kind: 'device', id: 'R06/k8s-n7' }], label: 'Mover la PSU1 de k8s-n7 a PDU-A', verb: 'Moviendo la PSU1 a PDU-A', min: 5, restricted: true, auth: { grant: true, after: 10 } },
+  { id: 'n7-off', inc: 'E4', on: [{ kind: 'device', id: 'R06/k8s-n7' }], label: 'Apagar k8s-n7', verb: 'Apagando k8s-n7', min: 2, restricted: true, auth: { grant: false, after: 5 } },
+  { id: 'ups-bypass', inc: 'E5', on: [{ kind: 'ups', id: 'UPS-A' }], label: 'Pasar UPS-A a bypass', verb: 'Pasando UPS-A a bypass', min: 2 },
+  { id: 'crac1-boost', inc: 'E6', on: [{ kind: 'crac', id: 'CRAC-1' }], label: 'Subir la capacidad de CRAC-1 al 90 %', verb: 'Subiendo la capacidad de CRAC-1', min: 1 },
+  { id: 'crac2-reset', inc: 'E6', on: [{ kind: 'crac', id: 'CRAC-2' }], label: 'Rearmar el compresor de CRAC-2', verb: 'Rearmando CRAC-2', min: 2 },
+  { id: 'tile-lift', inc: 'E7', on: [{ kind: 'leak', id: 'LEAK-Z3' }], label: 'Levantar la baldosa e inspeccionar', verb: 'Levantando la baldosa', min: 2 },
+  { id: 'absorbent', inc: 'E7', on: [{ kind: 'leak', id: 'LEAK-Z3' }], label: 'Colocar material absorbente', verb: 'Colocando material absorbente', min: 4 },
+  { id: 'photo-leak', inc: 'E7', on: [{ kind: 'leak', id: 'LEAK-Z3' }], label: 'Fotografiar', verb: 'Fotografiando', min: 1, photo: 'Foto · agua bajo la baldosa, zona 3' },
+  { id: 'crac1-off', inc: 'E7', on: [{ kind: 'crac', id: 'CRAC-1' }], label: 'Apagar CRAC-1', verb: 'Apagando CRAC-1', min: 1 },
+  { id: 'photo-r02', inc: 'E8', on: [{ kind: 'rack', id: 'R02' }], label: 'Fotografiar', verb: 'Fotografiando', min: 1, photo: 'Foto · puerta trasera de R02 y cable de consola' },
+  { id: 'door-secure', inc: 'E8', on: [{ kind: 'rack', id: 'R02' }], label: 'Asegurar la puerta trasera', verb: 'Asegurando la puerta', min: 2 },
+  { id: 'cable-unplug', inc: 'E8', on: [{ kind: 'device', id: 'R02/fw-01' }], label: 'Desconectar el cable de consola de fw-01', verb: 'Desconectando el cable', min: 1 },
+  { id: 'fw01-reboot', inc: 'E8', on: [{ kind: 'device', id: 'R02/fw-01' }], label: 'Reiniciar fw-01', verb: 'Reiniciando fw-01', min: 2, restricted: true, auth: { grant: false, after: 5 } },
+];
+
+// ---------------------------------------------------------------------------
 // Eventos del turno
-// Cada evento define la alerta, la respuesta esperada, la explicación
-// y su efecto en la sala (start / tick / onClose).
+// Cada evento define la alerta, la respuesta esperada, la explicación y las acciones.
+// Tipo de cada acción (para la corrección):
+//   field: 'id'      → se hace en la sala (FIELD_ACTIONS); declararla sin hacerla es un error
+//   verify: [claves] → cuenta si se inspeccionó lo indicado ('tab:cambios', 'insp:rack:R04'…);
+//                      after: 'id' exige inspeccionar después de esa acción
+//   note: true       → cuenta si hay una nota en la bitácora sobre el ticket (o en el cierre)
+//   abstain: [ids]   → «no hacer»: cuenta si no se ejecutó ninguna de esas acciones
+//   seq: [ids]       → acciones en sala que deben hacerse en ese orden
+//   authorized / unauthorized → la acción en sala cuenta solo con / sin autorización del cliente
+//   (sin tipo)       → declarativa: se evalúa lo marcado en el formulario
 // ---------------------------------------------------------------------------
 
 export const INCIDENTS = [
@@ -158,11 +201,11 @@ export const INCIDENTS = [
     title: 'Ingreso de proveedor a la sala',
     expected: { cls: 'benigno', prio: 'P4', esc: ['nadie'], escAllowed: [] },
     actions: [
-      { id: 'a1', text: 'Verificar que el ingreso tenga un cambio aprobado y vigente', ok: true },
-      { id: 'a2', text: 'Acompañar al técnico mientras trabaja en el rack del cliente', ok: true },
-      { id: 'a3', text: 'Registrar el ingreso y la salida en la bitácora', ok: true },
+      { id: 'a1', text: 'Verificar que el ingreso tenga un cambio aprobado y vigente', ok: true, verify: ['tab:cambios'] },
+      { id: 'a2', text: 'Acompañar al técnico mientras trabaja en el rack del cliente', ok: true, field: 'tech-escort' },
+      { id: 'a3', text: 'Registrar el ingreso y la salida en la bitácora', ok: true, note: true },
       { id: 'a4', text: 'Bloquear la credencial y pedir al técnico que salga de la sala' },
-      { id: 'a5', text: 'Apagar stg-02 para que el técnico trabaje sin riesgo', critical: true },
+      { id: 'a5', text: 'Apagar stg-02 para que el técnico trabaje sin riesgo', critical: true, field: 'stg02-off' },
     ],
     evidence: ['cal:CHG-1042', 'acc:acc-0805'],
     why: 'El ingreso coincide con CHG-1042, aprobado para hoy de 08:00 a 10:00 sobre stg-02 (R07). Es trabajo autorizado: se verifica, se acompaña y se registra. El cambio de disco es en caliente; el operador no apaga ni manipula equipos del cliente.',
@@ -174,11 +217,11 @@ export const INCIDENTS = [
     title: 'Temperatura alta en R04',
     expected: { cls: 'fp', prio: 'P4', esc: ['nadie'], escAllowed: [] },
     actions: [
-      { id: 'a1', text: 'Contrastar con los sensores vecinos y con la temperatura IPMI de los servidores', ok: true },
-      { id: 'a2', text: 'Reubicar y fijar el sensor en la toma de aire frontal del rack', ok: true },
-      { id: 'a3', text: 'Dejar registro para que mantenimiento revise la fijación del sensor', ok: true },
-      { id: 'a4', text: 'Subir CRAC-1 y CRAC-2 al 100 % para bajar la temperatura' },
-      { id: 'a5', text: 'Apagar los hosts de virtualización de R04 para evitar daños', critical: true },
+      { id: 'a1', text: 'Contrastar con los sensores vecinos y con la temperatura IPMI de los servidores', ok: true, verify: ['insp:rack:R04'] },
+      { id: 'a2', text: 'Reubicar y fijar el sensor en la toma de aire frontal del rack', ok: true, field: 'sensor-fix' },
+      { id: 'a3', text: 'Dejar registro para que mantenimiento revise la fijación del sensor', ok: true, note: true },
+      { id: 'a4', text: 'Subir CRAC-1 y CRAC-2 al 100 % para bajar la temperatura', field: 'crac-100' },
+      { id: 'a5', text: 'Apagar los hosts de virtualización de R04 para evitar daños', critical: true, field: 'r04-hosts-off' },
     ],
     evidence: ['obs:r04-sensor', 'obs:r04-ipmi'],
     why: 'Un solo sensor marca 34 °C, mientras R03 y R05 están cerca de 22 °C, la salida de R04 es normal y los servidores reportan 22–24 °C por IPMI. El sensor estaba suelto y colgaba hacia la parte trasera, donde sale el aire caliente. Es una medición errónea, no un problema térmico: se corrige el sensor sin escalar. La temperatura de entrada se mide en la toma de aire frontal.',
@@ -190,11 +233,11 @@ export const INCIDENTS = [
     title: 'Temperatura en aumento en R08',
     expected: { cls: 'vp', prio: 'P3', esc: ['nadie'], escAllowed: ['cliente'] },
     actions: [
-      { id: 'a1', text: 'Instalar paneles ciegos en los espacios vacíos U30–U34', ok: true, fix: true },
-      { id: 'a2', text: 'Verificar después que la temperatura de entrada vuelva a rango', ok: true },
-      { id: 'a3', text: 'Registrar el hallazgo en la bitácora', ok: true },
-      { id: 'a4', text: 'Bajar el setpoint de ambos CRAC a 16 °C' },
-      { id: 'a5', text: 'Abrir la puerta del pasillo frío para ventilar' },
+      { id: 'a1', text: 'Instalar paneles ciegos en los espacios vacíos U30–U34', ok: true, field: 'blank-install' },
+      { id: 'a2', text: 'Verificar después que la temperatura de entrada vuelva a rango', ok: true, verify: ['insp:rack:R08'], after: 'blank-install' },
+      { id: 'a3', text: 'Registrar el hallazgo en la bitácora', ok: true, note: true },
+      { id: 'a4', text: 'Bajar el setpoint de ambos CRAC a 16 °C', field: 'setpoint-16' },
+      { id: 'a5', text: 'Abrir la puerta del pasillo frío para ventilar', field: 'aisle-open' },
     ],
     evidence: ['obs:r08-blank', 'obs:r08-recirc'],
     why: 'Faltan paneles ciegos entre U30 y U34. El aire caliente de la parte trasera vuelve al frente por el hueco (recirculación) y calienta la entrada de los equipos superiores. Se corrige en sala, sin escalar: paneles ciegos y verificación. Bajar el setpoint gasta energía y no resuelve la causa; abrir el pasillo frío rompe la contención.',
@@ -206,12 +249,12 @@ export const INCIDENTS = [
     title: 'Carga alta en PDU-B de R06',
     expected: { cls: 'vp', prio: 'P2', esc: ['cliente'], escAllowed: ['jefe', 'elec'] },
     actions: [
-      { id: 'a1', text: 'Revisar en sala a qué PDU está conectada cada fuente de los equipos de R06', ok: true },
-      { id: 'a2', text: 'Informar al cliente y, con su autorización, mover una fuente de k8s-n7 a PDU-A', ok: true, fix: true },
+      { id: 'a1', text: 'Revisar en sala a qué PDU está conectada cada fuente de los equipos de R06', ok: true, verify: ['insp:rack:R06', 'insp:device:R06/k8s-n7'] },
+      { id: 'a2', text: 'Informar al cliente y, con su autorización, mover una fuente de k8s-n7 a PDU-A', ok: true, field: 'psu-move', authorized: true },
       { id: 'a3', text: 'Monitorear la carga de PDU-B hasta la corrección', ok: true },
-      { id: 'a4', text: 'Desconectar de inmediato la PSU1 de k8s-n7 y pasarla a PDU-A sin avisar', critical: true },
+      { id: 'a4', text: 'Desconectar de inmediato la PSU1 de k8s-n7 y pasarla a PDU-A sin avisar', critical: true, field: 'psu-move', unauthorized: true },
       { id: 'a5', text: 'Subir el umbral de alerta de la PDU al 95 %' },
-      { id: 'a6', text: 'Apagar k8s-n7 hasta que el cliente revise', critical: true },
+      { id: 'a6', text: 'Apagar k8s-n7 hasta que el cliente revise', critical: true, field: 'n7-off' },
     ],
     evidence: ['obs:r06-psu', 'obs:r06-pdu', 'cal:CHG-1045'],
     why: 'k8s-n7, instalado hoy por el cliente (CHG-1045), tiene las dos fuentes conectadas a PDU-B. La rama B sube y el equipo perdió la redundancia A+B: si la rama dispara, el nodo cae y los demás quedan sin respaldo. Como es un equipo del cliente, el operador no lo desconecta por su cuenta: informa, propone la corrección y la ejecuta con autorización. El cambio indicaba «PSU1 a PDU-A y PSU2 a PDU-B»: es un error de instalación.',
@@ -223,11 +266,11 @@ export const INCIDENTS = [
     title: 'UPS-A en batería',
     expected: { cls: 'benigno', prio: 'P4', esc: ['nadie'], escAllowed: [] },
     actions: [
-      { id: 'a1', text: 'Confirmar en el calendario la autoprueba programada (MNT-221)', ok: true },
-      { id: 'a2', text: 'Verificar que la entrada de red y UPS-B estén normales', ok: true },
-      { id: 'a3', text: 'Registrar inicio y fin de la prueba en la bitácora', ok: true },
+      { id: 'a1', text: 'Confirmar en el calendario la autoprueba programada (MNT-221)', ok: true, verify: ['tab:cambios'] },
+      { id: 'a2', text: 'Verificar que la entrada de red y UPS-B estén normales', ok: true, verify: ['insp:ups:UPS-B'] },
+      { id: 'a3', text: 'Registrar inicio y fin de la prueba en la bitácora', ok: true, note: true },
       { id: 'a4', text: 'Arrancar el generador manualmente por precaución' },
-      { id: 'a5', text: 'Pasar UPS-A a bypass para cortar la prueba', critical: true },
+      { id: 'a5', text: 'Pasar UPS-A a bypass para cortar la prueba', critical: true, field: 'ups-bypass' },
       { id: 'a6', text: 'Avisar a todos los clientes de un corte de energía' },
     ],
     evidence: ['cal:MNT-221', 'obs:upsa-test'],
@@ -240,11 +283,11 @@ export const INCIDENTS = [
     title: 'Falla de CRAC-2',
     expected: { cls: 'vp', prio: 'P1', esc: ['clima', 'jefe'], escAllowed: ['cliente'] },
     actions: [
-      { id: 'a1', text: 'Subir la capacidad de CRAC-1 para compensar', ok: true, fix: true },
+      { id: 'a1', text: 'Subir la capacidad de CRAC-1 para compensar', ok: true, field: 'crac1-boost' },
       { id: 'a2', text: 'Vigilar la temperatura de entrada de la fila B cada 5 minutos', ok: true },
-      { id: 'a3', text: 'Mantener cerradas las puertas del pasillo frío', ok: true },
-      { id: 'a4', text: 'Rearmar CRAC-2 varias veces hasta que el compresor arranque', critical: true },
-      { id: 'a5', text: 'Abrir las puertas del pasillo frío y de la sala para ventilar' },
+      { id: 'a3', text: 'Mantener cerradas las puertas del pasillo frío', ok: true, abstain: ['aisle-open'] },
+      { id: 'a4', text: 'Rearmar CRAC-2 varias veces hasta que el compresor arranque', critical: true, field: 'crac2-reset' },
+      { id: 'a5', text: 'Abrir las puertas del pasillo frío y de la sala para ventilar', field: 'aisle-open' },
       { id: 'a6', text: 'Esperar a ver si la temperatura se estabiliza sola' },
     ],
     evidence: ['obs:crac2-alarm', 'obs:crac1-ok'],
@@ -257,10 +300,10 @@ export const INCIDENTS = [
     title: 'Líquido bajo el piso técnico',
     expected: { cls: 'vp', prio: 'P2', esc: ['clima'], escAllowed: ['jefe'] },
     actions: [
-      { id: 'a1', text: 'Levantar la baldosa e inspeccionar el origen sin pisar el agua', ok: true },
-      { id: 'a2', text: 'Contener con material absorbente y alejar el agua de la canalización eléctrica', ok: true, fix: true },
-      { id: 'a3', text: 'Documentar con fotos el punto exacto y el origen', ok: true },
-      { id: 'a4', text: 'Apagar CRAC-1 de inmediato', critical: true },
+      { id: 'a1', text: 'Levantar la baldosa e inspeccionar el origen sin pisar el agua', ok: true, field: 'tile-lift' },
+      { id: 'a2', text: 'Contener con material absorbente y alejar el agua de la canalización eléctrica', ok: true, field: 'absorbent' },
+      { id: 'a3', text: 'Documentar con fotos el punto exacto y el origen', ok: true, field: 'photo-leak' },
+      { id: 'a4', text: 'Apagar CRAC-1 de inmediato', critical: true, field: 'crac1-off' },
       { id: 'a5', text: 'Esperar al cambio de turno; es poca agua' },
       { id: 'a6', text: 'Cortar la energía del tablero de la sala', critical: true },
     ],
@@ -274,12 +317,12 @@ export const INCIDENTS = [
     title: 'Puerta de R02 abierta',
     expected: { cls: 'vp', prio: 'P2', esc: ['seguridad', 'jefe'], escAllowed: ['cliente'] },
     actions: [
-      { id: 'a1', text: 'No manipular el equipo ni el cable encontrado: preservar la evidencia', ok: true },
-      { id: 'a2', text: 'Revisar el registro de accesos y las cámaras del periodo', ok: true },
-      { id: 'a3', text: 'Fotografiar, registrar y luego asegurar la puerta', ok: true, fix: true },
-      { id: 'a4', text: 'Desconectar el cable de consola de fw-01' },
+      { id: 'a1', text: 'No manipular el equipo ni el cable encontrado: preservar la evidencia', ok: true, abstain: ['cable-unplug', 'fw01-reboot'] },
+      { id: 'a2', text: 'Revisar el registro de accesos y las cámaras del periodo', ok: true, verify: ['tab:accesos'] },
+      { id: 'a3', text: 'Fotografiar, registrar y luego asegurar la puerta', ok: true, seq: ['photo-r02', 'door-secure'] },
+      { id: 'a4', text: 'Desconectar el cable de consola de fw-01', field: 'cable-unplug' },
       { id: 'a5', text: 'Cerrar la puerta y cerrar el ticket' },
-      { id: 'a6', text: 'Reiniciar fw-01 por si fue manipulado', critical: true },
+      { id: 'a6', text: 'Reiniciar fw-01 por si fue manipulado', critical: true, field: 'fw01-reboot' },
     ],
     evidence: ['obs:r02-door', 'obs:r02-cable', 'acc:acc-1404'],
     why: 'La puerta se abrió sin cambio asociado, y a las 14:04 entró una tarjeta de visita (V-12) sin visita registrada. Hay un cable de consola conectado a fw-01 que no figura en el inventario. Es un posible acceso no autorizado: se avisa a Seguridad física y al jefe de turno, se preserva la evidencia y no se toca el equipo del cliente.',

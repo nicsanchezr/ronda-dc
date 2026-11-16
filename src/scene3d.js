@@ -154,12 +154,16 @@ export function createScene(container, handlers) {
       devs[d.name] = { led, def: d };
     });
     // panel ciego faltante (hueco con brillo en modo calor)
-    let gapGlow = null;
+    let gapGlow = null, gapFill = null;
     if (def.gap) {
       const [a, b] = def.gap;
       const gm = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }); TB.color(gm, (T) => T.scene.gapGlow);
       gapGlow = new THREE.Mesh(new THREE.PlaneGeometry(RW - 0.1, (b - a + 1) * U), gm);
       gapGlow.position.set(0, 0.06 + (a - 1) * U + ((b - a + 1) * U) / 2, RD / 2 + 0.004); g.add(gapGlow);
+      const fm = std({ roughness: 0.8, metalness: 0.2 }); TB.color(fm, (T) => T.scene.dev.patch);
+      const gh = (b - a + 1) * U;
+      const geo = new THREE.BoxGeometry(RW - 0.1, gh, 0.012); geo.translate(0, gh / 2, 0);
+      gapFill = new THREE.Mesh(geo, fm); gapFill.position.set(0, 0.06 + (a - 1) * U, RD / 2 + 0.008); gapFill.scale.y = 0.001; g.add(gapFill);
     }
     // estado: contorno + ícono de prioridad (+ halo en el piso si el tema lo usa)
     const outlineMat = new THREE.MeshBasicMaterial();
@@ -195,7 +199,7 @@ export function createScene(container, handlers) {
     pickables.push(body);
     g.traverse((o) => { if (o.isMesh && o !== body) o.userData = { kind: 'rack', id: def.id }; if (o.isMesh && o !== label && o !== halo && !outline.children.includes(o)) pickables.push(o); });
     scene.add(g);
-    racks[def.id] = { g, bodyMat, outline, outlineMat, icon, iconCanvas, iconTex, iconKey: '', halo, haloMat, hinge, sensor, devs, gapGlow, label, cable, lastLabel: '' };
+    racks[def.id] = { gapFill, g, bodyMat, outline, outlineMat, icon, iconCanvas, iconTex, iconKey: '', halo, haloMat, hinge, sensor, devs, gapGlow, label, cable, lastLabel: '' };
   });
 
   // CRAC
@@ -262,6 +266,18 @@ export function createScene(container, handlers) {
   const water = new THREE.Mesh(new THREE.CircleGeometry(1, 40), waterMat);
   water.rotation.x = -Math.PI / 2; water.position.set(0.7, 0.007, -2.42); water.visible = false; scene.add(water);
   water.userData = leakZone.userData; pickables.push(water);
+
+  // Baldosa de la zona 3 (se levanta) y paños absorbentes (aparecen al contener)
+  const tilePivot = new THREE.Group(); tilePivot.position.set(0.41, 0.012, -2.42); scene.add(tilePivot);
+  const tileMat = std({ map: tileTex, roughness: 0.9 });
+  const tileGeo = new THREE.BoxGeometry(0.58, 0.02, 0.58); tileGeo.translate(0.29, 0, 0);
+  const tile = new THREE.Mesh(tileGeo, tileMat); tilePivot.add(tile);
+  tile.userData = leakZone.userData; pickables.push(tile);
+  const mats = new THREE.Group(); mats.position.set(0.95, 0.012, -2.42); scene.add(mats);
+  const matMat = std({ roughness: 1 }); TB.color(matMat, (T) => T.scene.leak);
+  [[-0.15, -0.12, 0.3], [0.12, 0.05, -0.2], [0.32, -0.08, 0.6]].forEach(([x, z, r]) => { const m = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.012, 0.18), matMat); m.position.set(x, 0.006, z); m.rotation.y = r; mats.add(m); });
+  mats.scale.setScalar(0.001); mats.userData.noFade = false;
+  let tileTarget = 0, matsTarget = 0.001, blinkUntil = 0;
 
   // Selección
   const selBox = new THREE.BoxHelper(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1)));
@@ -632,11 +648,12 @@ export function createScene(container, handlers) {
         const st = deviceState(world, def.id, R.devs[name].def);
         R.devs[name].led.material.color.set({ ok: T.led.on, warn: T.led.warn, crit: T.led.crit, down: T.led.off, off: T.led.off }[st] || T.led.on);
       }
-      R.hinge.rotation.y = rk.rearOpen ? -1.75 : 0;
+      R.hingeTarget = rk.rearOpen ? -1.75 : 0;
       if (R.cable) R.cable.visible = !!world.flags.cable;
+      if (R.gapFill) R.gapFillTarget = rk.gap ? 0.001 : 1;
       if (def.id === 'R04') {
-        if (rk.sensorLoose) { R.sensor.position.set(RW / 2 + 0.03, 1.35, -0.25); R.sensor.rotation.z = 0.5; }
-        else { R.sensor.position.set(RW / 2 - 0.06, 1.86, RD / 2 + 0.03); R.sensor.rotation.z = 0; }
+        R.sensorTarget = rk.sensorLoose ? [RW / 2 + 0.03, 1.35, -0.25, 0.5] : [RW / 2 - 0.06, 1.86, RD / 2 + 0.03, 0];
+        if (!R.sensorInit) { R.sensor.position.set(...R.sensorTarget.slice(0, 3)); R.sensor.rotation.z = R.sensorTarget[3]; R.sensorInit = true; }
       }
       if (R.gapGlow) R.gapGlow.material.opacity = rk.gap ? (mode === 'calor' ? 0.55 : 0.0) : 0;
       if (R.gapGlow) R.gapGlow.visible = rk.gap && p < 0.01;
@@ -648,12 +665,25 @@ export function createScene(container, handlers) {
     upss['UPS-B'].scr.material.color.set(T.led.on);
     water.visible = world.leak.active;
     water.scale.setScalar(Math.max(0.05, world.leak.radius));
+    tileTarget = world.flags.tileLifted && world.leak.active ? -1.15 : 0;
+    matsTarget = world.leak.active && world.leak.contained ? 1 : 0.001;
   }
 
   function loop(now) {
     requestAnimationFrame(loop);
     if (anim) anim(now);
+    const dtS = Math.min(0.1, (now - (loop.prev || now)) / 1000); loop.prev = now;
+    const k = Math.min(1, dtS * 6);
+    for (const def of RACKS) {
+      const R = racks[def.id];
+      if (R.hingeTarget !== undefined) R.hinge.rotation.y += (R.hingeTarget - R.hinge.rotation.y) * k;
+      if (R.gapFill && R.gapFillTarget !== undefined) R.gapFill.scale.y += (R.gapFillTarget - R.gapFill.scale.y) * k;
+      if (R.sensorTarget) { const [x, y, z, rz] = R.sensorTarget; R.sensor.position.x += (x - R.sensor.position.x) * k; R.sensor.position.y += (y - R.sensor.position.y) * k; R.sensor.position.z += (z - R.sensor.position.z) * k; R.sensor.rotation.z += (rz - R.sensor.rotation.z) * k; }
+    }
+    tilePivot.rotation.z += (-tileTarget - tilePivot.rotation.z) * k;
+    { const sc = mats.scale.x + (matsTarget - mats.scale.x) * k; mats.scale.setScalar(sc); }
     pulse = (Math.sin(now / 260) + 1) / 2;
+    if (world && now < blinkUntil) cracs['CRAC-1'].lamp.material.color.set(Math.floor(now / 150) % 2 ? getTokens().led.on : getTokens().led.off);
     if (world) {
       leakZone.material.opacity = world.leak.active ? (0.15 + 0.25 * pulse) * (1 - 0.6 * p) : 0.0;
       if (world.flags.crac2Down) cracs['CRAC-2'].front.emissive.set(getTokens().sev.disaster).multiplyScalar(0.35 * pulse);
@@ -676,6 +706,8 @@ export function createScene(container, handlers) {
   return {
     update(w, m, sev) { world = w; mode = m; sevMap = sev; sync(); },
     setView, focus, select, enterRack, exitRack, rackSide, focusDevice, setLanding,
+    /** Animación breve al completar una acción en sala (el resto lo hace sync con el nuevo estado). */
+    animateField(id) { if (id === 'crac1-boost') blinkUntil = performance.now() + 1500; if (world) sync(); },
     get landing() { return landing; },
     get detail() { return detail; },
     get busy() { return busy; },

@@ -1,5 +1,6 @@
-import { INCIDENTS, NOISE, ACCESS, CALENDAR, RUNBOOKS, ESCALATIONS, CLASSES, PRIORITIES, SEV, SHIFT, RACKS, CLIENTS } from './scenario.js';
-import { createWorld, step, startIncident, applyClose, inspect, rackSeverity, clock, fmt1, TOTAL_DEVICES, rackMaxInlet } from './sim.js';
+import { INCIDENTS, NOISE, ACCESS, CALENDAR, RUNBOOKS, ESCALATIONS, CLASSES, PRIORITIES, SEV, SHIFT, RACKS, CLIENTS, FIELD_ACTIONS } from './scenario.js';
+import { createWorld, step, startIncident, applyClose, inspect, rackSeverity, clock, fmt1, TOTAL_DEVICES, rackMaxInlet, fieldAvailable, fieldActionsFor, requestAuth, doField, fieldById } from './sim.js';
+import { scoreTicket as scoreCore, actionStatus } from './scoring.js';
 import { createScene } from './scene3d.js';
 import { t, applyI18n } from './i18n/index.js';
 import { initThemes, themes, getState, setTheme, setMode, onThemeChange } from './themes/index.js';
@@ -8,6 +9,7 @@ import { statusIcon } from './status.js';
 initThemes(); // variables CSS del tema antes de crear la escena
 
 const SEC_PER_MIN = 5; // segundos reales por minuto de juego a velocidad 1×
+const ACT_SPEED = 8; // el reloj corre a 8× mientras dura una acción en sala
 const STORE_KEY = 'ronda-dc-ultimo';
 const OLD_STORE_KEY = 'turno-sala-ultimo'; // nombre anterior del proyecto
 const $ = (s, r = document) => r.querySelector(s);
@@ -19,6 +21,7 @@ function freshState() {
     world: createWorld(), running: false, speed: 1, mode: 'estado', tab: 'monitoreo',
     tickets: [], active: null, started: new Set(), sel: null, ended: false, modal: false,
     notes: [], lastMinute: -1, seenSys: 0, begun: false,
+    level: 'normal', seen: {}, act: null, confirm: null,
   };
 }
 
@@ -76,9 +79,15 @@ function advance(dt) {
         startIncident(w, inc);
         const tk = { id: 'TK-' + (101 + S.tickets.length), inc, openedAt: inc.at, ackAt: null, closedAt: null, evidence: [], answer: null, result: null };
         S.tickets.push(tk);
+        w.photos.filter((ph) => ph.inc === inc.id).forEach((ph) => tk.evidence.push({ id: ph.id, label: ph.label }));
         w.log.push({ t: inc.at, kind: 'alerta', text: `${SEV[inc.alert.sev].label}: ${inc.alert.text} → ${tk.id}` });
         toast(`<b>${esc(SEV[inc.alert.sev].label)}</b> · ${esc(inc.alert.host)}<br>${esc(inc.alert.text)}<small>${t('ticket.created', { id: tk.id })}</small>`, inc.alert.sev, () => openTicket(tk.id));
       }
+    }
+    if (S.act && w.t >= S.act.end) finishField();
+    while (w.authEvents.length) {
+      const ev = w.authEvents.shift(); const fa = fieldById(ev.id);
+      toast(t(ev.grant ? 'field.authYes' : 'field.authNo', { label: fa.label.toLowerCase() }));
     }
     while (S.seenSys < w.sysAlerts.length) {
       const a = w.sysAlerts[S.seenSys++];
@@ -92,13 +101,14 @@ let lastTs = performance.now();
 setInterval(() => {
   const now = performance.now(); const real = (now - lastTs) / 1000; lastTs = now;
   if (!S.running || S.modal || S.ended) return;
-  advance((real * S.speed) / SEC_PER_MIN);
+  advance((real * (S.act ? ACT_SPEED : S.speed)) / SEC_PER_MIN);
   tickUI();
 }, 100);
 
 function tickUI() {
   const w = S.world;
   $('#clock').textContent = clock(w.t);
+  if (S.act) { const ap = $('#actprog'); if (ap) { ap.textContent = t('field.progressShort', { n: Math.min(S.act.fa.min, Math.floor(w.t - S.act.start)), m: S.act.fa.min }); ap.title = S.act.fa.verb; } renderInspector(); }
   $('#shiftbar i').style.width = Math.min(100, (w.t / SHIFT.length) * 100) + '%';
   scene.update(w, S.mode, sevMap());
   const m = Math.floor(w.t);
@@ -132,8 +142,11 @@ function renderSummary() {
     <div class="sevrow">${['disaster', 'high', 'average', 'warning', 'info'].map((k) => `<span>${statusIcon(k)}${SEV[k].label} <b>${counts[k]}</b></span>`).join('')}<span>${statusIcon('ok')}${t('summary.racksOk')} <b>${RACKS.length - affected}</b></span></div>`;
 }
 
+function markSeen(key) { if (S.begun) S.seen[key] = S.world.t; }
+
 function renderPanel() {
   const w = S.world, tab = S.tab;
+  markSeen('tab:' + tab);
   const nOpen = openTickets().length;
   document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
   $('#tkbadge').textContent = nOpen || '';
@@ -264,6 +277,61 @@ function renderRackUI(id) {
   renderInspector();
 }
 
+// ---------- Acciones en sala --------------------------------------------------------------
+function fieldActionsHtml() {
+  if (!S.sel) return '';
+  const w = S.world;
+  const list = fieldActionsFor(S.sel.kind, S.sel.id).filter((fa) => fieldAvailable(w, fa));
+  if (!list.length && !(S.act && fieldActionsFor(S.sel.kind, S.sel.id).includes(S.act.fa))) return '';
+  const busy = !!S.act || !S.begun || S.ended;
+  const prog = S.act ? `<div class="faprog" role="status"><i style="width:${Math.min(100, ((w.t - S.act.start) / S.act.fa.min) * 100)}%"></i><span>${esc(t('field.progress', { verb: S.act.fa.verb, n: Math.min(S.act.fa.min, Math.floor(w.t - S.act.start)), m: S.act.fa.min }))}</span></div>` : '';
+  const rows = list.map((fa) => {
+    const dev = fa.on.find((o) => o.kind === 'device');
+    const who = S.sel.kind === 'rack' && dev ? `<small class="muted">${esc(dev.id.split('/')[1])}</small> ` : '';
+    const a = w.auth[fa.id];
+    if (S.confirm === fa.id) {
+      const extra = fa.restricted && !(a && a.grant) ? ' ' + t('field.noAuth') : '';
+      return `<div class="faconf" role="group"><span>${esc(t('field.confirm', { label: fa.label, min: fa.min }))}${esc(extra)}</span><span class="fab"><button class="btn" data-act="fa-ok" data-fa="${fa.id}">${t('field.do')}</button><button class="btn ghost" data-act="fa-cancel">${t('field.cancel')}</button></span></div>`;
+    }
+    let authHtml = '';
+    if (fa.restricted) {
+      authHtml = !a ? `<button class="link" data-act="fa-auth" data-fa="${fa.id}" ${busy ? 'disabled' : ''}>${t('field.ask')}</button>`
+        : a.grant === null ? `<span class="muted small">${t('field.asked', { time: clock(a.req) })}</span>`
+        : `<span class="small ${a.grant ? 'good' : 'bad'}">${t(a.grant ? 'field.granted' : 'field.denied')}</span>`;
+    }
+    return `<div class="farow"><button class="fabtn" data-act="fa" data-fa="${fa.id}" ${busy ? 'disabled' : ''}>${fa.restricted ? '🔒 ' : ''}${who}${esc(fa.label)} <small class="muted">· ${fa.min} min</small></button>${authHtml}</div>`;
+  }).join('');
+  return `<div class="evh">${t('field.title')}</div>${prog}<div class="falist">${rows}</div>`;
+}
+
+function startField(id) {
+  const fa = fieldById(id); const w = S.world;
+  if (!fa || S.act || !fieldAvailable(w, fa)) return;
+  S.confirm = null;
+  S.act = { fa, start: w.t, end: w.t + fa.min, wasRunning: S.running };
+  S.running = true; lastTs = performance.now();
+  updateSpeedUI(); renderInspector();
+}
+function finishField() {
+  const w = S.world, fa = S.act.fa, wasRunning = S.act.wasRunning;
+  S.act = null;
+  const photo = doField(w, fa);
+  if (photo) {
+    const tk = S.tickets.find((x) => x.inc.id === fa.inc && x.closedAt == null) || S.tickets.find((x) => x.id === S.active && x.closedAt == null);
+    if (tk && !tk.evidence.some((e) => e.id === photo.id)) tk.evidence.push({ id: photo.id, label: photo.label });
+    flash();
+  }
+  scene.animateField(fa.id);
+  toast(t('field.done', { label: fa.label }));
+  if (!wasRunning) S.running = false;
+  updateSpeedUI();
+  S.lastMinute = -1;
+}
+function flash() {
+  const f = $('#flash'); if (!f) return;
+  f.classList.remove('on'); void f.offsetWidth; f.classList.add('on');
+}
+
 // ---------- Inspector -------------------------------------------------------------------
 function renderInspector() {
   const box = $('#inspector');
@@ -271,6 +339,7 @@ function renderInspector() {
   const d = inspect(S.world, S.sel.kind, S.sel.id);
   if (!d) { panelHide(box); return; }
   panelShow(box, S.sel.kind + ':' + S.sel.id);
+  markSeen('insp:' + S.sel.kind + ':' + S.sel.id);
   const LED = { ok: 'var(--led-on)', warn: 'var(--led-warn)', crit: 'var(--led-crit)', down: 'var(--led-off)', off: 'var(--led-off)' };
   const STL = t('inspector.state');
   const keep = box.querySelector('.ib') ? box.querySelector('.ib').scrollTop : 0;
@@ -278,6 +347,7 @@ function renderInspector() {
   <div class="ib">
     <table class="rd">${d.readings.map(([k, v, c]) => `<tr><td>${esc(k)}</td><td class="${c || ''}">${esc(v)}</td></tr>`).join('')}</table>
     ${d.obs.length ? `<div class="evh">${t('inspector.roundObs')}</div>${d.obs.map((o) => `<div class="obs ${o.warn ? 'w' : ''}"><span>${esc(o.text)}</span>${attachBtn(o.id, d.title + ': ' + o.text)}</div>`).join('')}` : ''}
+    ${fieldActionsHtml()}
     ${d.devices ? `<div class="evh">${t('inspector.devicesFront')}</div><table class="dv"><tr><th>${t('inspector.colU')}</th><th>${t('inspector.colDevice')}</th><th>${t('inspector.colPsu')}</th><th>${t('inspector.colState')}</th></tr>${d.devices.map((x) => `<tr class="pick" data-act="pick-device" data-rack="${esc(S.sel.id)}" data-dev="${esc(x.name)}" title="${esc(t('inspector.pickDevice', { name: x.name }))}"><td class="mono">${x.u}${x.h > 1 ? '–' + (x.u + x.h - 1) : ''}</td><td>${esc(x.name)}</td><td class="mono ${x.psu === 'B + B' ? 'warn' : ''}">${x.psu}</td><td><i class="dot" style="background:${LED[x.state]}"></i>${STL[x.state]}</td></tr>`).join('')}</table>` : ''}
     ${d.link ? `<button class="btn ghost" data-act="tab" data-tab="${d.link}">${t('inspector.viewAccess')}</button>` : ''}
     ${S.sel.kind === 'rack' && scene.detail !== S.sel.id ? `<div class="ibtns"><button class="btn ghost" data-act="rack-detail" data-rack="${esc(S.sel.id)}">${t('inspector.viewRack')}</button></div>` : ''}
@@ -295,20 +365,41 @@ function shuffleSeeded(arr, seed) {
   return a;
 }
 
+function hasNoteFor(tk, formNote = '') {
+  return !!formNote.trim() || S.notes.some((n) => n.text.toUpperCase().includes(tk.id));
+}
+function actionCtx(tk, declared = [], formNote = '') {
+  return { done: S.world.done, seen: S.seen, incStart: tk.openedAt, hasNote: hasNoteFor(tk, formNote), declared: new Set(declared) };
+}
+
 function openResolve(tkId) {
-  const tk = S.tickets.find((t) => t.id === tkId);
-  const inc = tk.inc;
+  const tk = S.tickets.find((x) => x.id === tkId);
+  const inc = tk.inc, w = S.world;
   S.modal = true;
   const acts = shuffleSeeded(inc.actions, inc.at + 7);
+  const ctx = actionCtx(tk);
+  const escReq = !!w.escReq[inc.id];
+  const actRow = (a) => {
+    const st = actionStatus(a, ctx);
+    const auto = st === 'done' && (a.field || a.note || a.seq);
+    const when = a.field && w.done[a.field] ? clock(w.done[a.field].t) : a.seq && w.done[a.seq[a.seq.length - 1]] ? clock(w.done[a.seq[a.seq.length - 1]].t) : '';
+    const tag = auto ? `<em class="auto">${a.note ? t('field.hasNote') : t('field.doneAt', { time: when })}</em>` : '';
+    return `<label class="opt ${auto ? 'auto' : ''}"><input type="checkbox" name="act" value="${a.id}" ${auto ? 'checked disabled' : ''}><span>${esc(a.text)} ${tag}</span></label>`;
+  };
+  const escRow = (e) => {
+    const forced = escReq && e.id === 'cliente';
+    const off = escReq && e.id === 'nadie';
+    return `<label class="opt ${forced ? 'auto' : ''}"><input type="checkbox" name="esc" value="${e.id}" ${forced ? 'checked disabled' : ''} ${off ? 'disabled' : ''}><span>${esc(e.label)}${forced ? ` <em class="auto">${t('field.askedEsc')}</em>` : ''}</span></label>`;
+  };
   $('#modal').hidden = false;
   $('#modalbox').innerHTML = `<form id="resolveform">
     <div class="mh"><div><div class="muted small">${tk.id} · ${clock(tk.openedAt)} · ${esc(inc.alert.host)}</div><h2>${esc(inc.title)}</h2></div><button type="button" class="x" data-act="cancel-modal" aria-label="${t('resolve.cancel')}">×</button></div>
     <p class="muted small">${t('resolve.clockStopped', { n: tk.evidence.length })}</p>
     <fieldset><legend>${t('resolve.q1')}</legend><div class="opts">${CLASSES.map((c) => `<label class="opt"><input type="radio" name="cls" value="${c.id}" required><span><b>${c.label}</b><small>${c.hint}</small></span></label>`).join('')}</div></fieldset>
     <fieldset><legend>${t('resolve.q2')}</legend><div class="opts four">${PRIORITIES.map((p) => `<label class="opt"><input type="radio" name="prio" value="${p.id}" required><span><b>${p.label}</b></span></label>`).join('')}</div></fieldset>
-    <fieldset><legend>${t('resolve.q3')} <small>${t('resolve.q3hint')}</small></legend><div class="opts col">${acts.map((a) => `<label class="opt"><input type="checkbox" name="act" value="${a.id}"><span>${esc(a.text)}</span></label>`).join('')}</div></fieldset>
-    <fieldset><legend>${t('resolve.q4')}</legend><div class="opts col">${ESCALATIONS.map((e) => `<label class="opt"><input type="checkbox" name="esc" value="${e.id}"><span>${esc(e.label)}</span></label>`).join('')}</div></fieldset>
-    <fieldset><legend>${t('resolve.q5')} <small>${t('resolve.q5hint')}</small></legend><textarea name="note" rows="2" placeholder="${t('resolve.notePh')}"></textarea></fieldset>
+    <fieldset><legend>${t('resolve.q3')} <small>${t('resolve.q3hintField')}</small></legend><div class="opts col">${acts.map(actRow).join('')}</div></fieldset>
+    <fieldset><legend>${t('resolve.q4')}</legend><div class="opts col">${ESCALATIONS.map(escRow).join('')}</div></fieldset>
+    <fieldset><legend>${t('resolve.q5')} <small>${t('resolve.q5hintNote')}</small></legend><textarea name="note" rows="2" placeholder="${t('resolve.notePh')}"></textarea></fieldset>
     <div class="err" id="formerr"></div>
     <div class="mf"><button type="button" class="btn ghost" data-act="cancel-modal">${t('resolve.back')}</button><button class="btn">${t('resolve.submit')}</button></div>
   </form>`;
@@ -316,14 +407,15 @@ function openResolve(tkId) {
   f.addEventListener('change', (e) => {
     if (e.target.name === 'esc') {
       const nadie = f.querySelector('input[name=esc][value=nadie]');
-      if (e.target.value === 'nadie' && e.target.checked) f.querySelectorAll('input[name=esc]').forEach((i) => { if (i !== nadie) i.checked = false; });
+      if (e.target.value === 'nadie' && e.target.checked) f.querySelectorAll('input[name=esc]:not(:disabled)').forEach((i) => { if (i !== nadie) i.checked = false; });
       else if (e.target.checked) nadie.checked = false;
     }
   });
   f.addEventListener('submit', (e) => {
     e.preventDefault();
     const fd = new FormData(f);
-    const ans = { cls: fd.get('cls'), prio: fd.get('prio'), actions: fd.getAll('act'), esc: fd.getAll('esc'), note: (fd.get('note') || '').trim() };
+    const checked = (name) => [...f.querySelectorAll(`input[name=${name}]:checked`)].map((i) => i.value);
+    const ans = { cls: fd.get('cls'), prio: fd.get('prio'), actions: checked('act'), esc: checked('esc'), note: (fd.get('note') || '').trim() };
     if (!ans.actions.length) { $('#formerr').textContent = t('resolve.errAction'); return; }
     if (!ans.esc.length) { $('#formerr').textContent = t('resolve.errEsc'); return; }
     closeTicket(tk, ans);
@@ -331,41 +423,18 @@ function openResolve(tkId) {
 }
 
 function scoreTicket(tk, ans) {
-  const inc = tk.inc, ex = inc.expected;
-  const parts = [];
-  const lbl = (arr, id) => (arr.find((x) => x.id === id) || {}).label || id;
-  // clasificación
-  parts.push({ dim: t('review.dimCls'), yours: lbl(CLASSES, ans.cls), exp: lbl(CLASSES, ex.cls), pts: ans.cls === ex.cls ? 25 : 0, max: 25 });
-  // prioridad
-  const pi = (p) => Number(p.slice(1));
-  const dp = Math.abs(pi(ans.prio) - pi(ex.prio));
-  parts.push({ dim: t('review.dimPrio'), yours: ans.prio, exp: ex.prio, pts: dp === 0 ? 15 : dp === 1 ? 7 : 0, max: 15 });
-  // escalamiento
-  const E = ex.esc, A = ex.escAllowed || [];
-  const hit = ans.esc.filter((x) => E.includes(x)).length;
-  const extra = ans.esc.filter((x) => !E.includes(x) && !A.includes(x)).length;
-  const escPts = Math.max(0, Math.round(20 * (hit / E.length) - 7 * extra));
-  parts.push({ dim: t('review.dimEsc'), yours: ans.esc.map((x) => lbl(ESCALATIONS, x)).join(', '), exp: E.map((x) => lbl(ESCALATIONS, x)).join(', ') + (A.length ? t('review.alsoValid', { list: A.map((x) => lbl(ESCALATIONS, x)).join(', ') }) : ''), pts: escPts, max: 20 });
-  // acciones
-  const K = inc.actions.filter((a) => a.ok).map((a) => a.id);
-  const chosen = inc.actions.filter((a) => ans.actions.includes(a.id));
-  const crit = chosen.filter((a) => a.critical);
-  const wrong = chosen.filter((a) => !a.ok && !a.critical);
-  let actPts = Math.round(30 * (chosen.filter((a) => a.ok).length / K.length) - 10 * wrong.length);
-  if (crit.length) actPts = 0;
-  parts.push({ dim: t('review.dimAct'), yours: chosen.map((a) => a.text).join(' · '), exp: inc.actions.filter((a) => a.ok).map((a) => a.text).join(' · '), pts: Math.max(0, actPts), max: 30, crit: crit.map((a) => a.text), wrong: wrong.map((a) => a.text) });
-  // evidencia
-  const evIds = tk.evidence.map((e) => e.id);
-  const got = inc.evidence.filter((e) => evIds.includes(e));
-  parts.push({ dim: t('review.dimEv'), yours: t('review.evCount', { got: got.length, n: inc.evidence.length }), exp: inc.evidence.map(evLabel).join(' · '), pts: Math.round(10 * (got.length / inc.evidence.length)), max: 10, missing: inc.evidence.filter((e) => !evIds.includes(e)).map(evLabel) });
-  // tiempos (SLA según la prioridad esperada)
-  const P = PRIORITIES.find((p) => p.id === ex.prio);
-  const ackT = (tk.ackAt ?? S.world.t) - tk.openedAt, resT = S.world.t - tk.openedAt;
-  let pen = 0; const notes = [];
-  if (ackT > P.ack) { pen += 5; notes.push(t('review.ackLate', { min: Math.round(ackT), prio: ex.prio, sla: P.ack })); }
-  if (resT > P.res) { pen += 5; notes.push(t('review.resLate', { min: Math.round(resT), prio: ex.prio, sla: P.res })); }
-  const total = Math.max(0, parts.reduce((s, p) => s + p.pts, 0) - pen);
-  return { parts, total, pen, notes, ackT, resT, critical: crit.length > 0 };
+  const w = S.world;
+  return scoreCore(tk.inc, ans, {
+    level: S.level, done: w.done, seen: S.seen, incStart: tk.openedAt, hasNote: hasNoteFor(tk, ans.note || ''),
+    escReq: !!w.escReq[tk.inc.id], authFields: FIELD_ACTIONS.filter((f) => f.inc === tk.inc.id && w.auth[f.id]).map((f) => f.id), fieldById,
+    evidenceIds: tk.evidence.map((e) => e.id),
+    ackT: (tk.ackAt ?? w.t) - tk.openedAt, resT: w.t - tk.openedAt, hints: tk.hints || 0, proactive: !!tk.proactive,
+    labels: {
+      dimCls: t('review.dimCls'), dimPrio: t('review.dimPrio'), dimEsc: t('review.dimEsc'), dimAct: t('review.dimAct'), dimEv: t('review.dimEv'),
+      alsoValid: (list) => t('review.alsoValid', { list }), evCount: (got, n) => t('review.evCount', { got, n }), evLabel,
+      ackLate: (min, prio, sla) => t('review.ackLate', { min, prio, sla }), resLate: (min, prio, sla) => t('review.resLate', { min, prio, sla }),
+    },
+  });
 }
 
 function evLabel(id) {
@@ -392,11 +461,17 @@ function showReview(tk) {
   $('#modalbox').innerHTML = `<div class="mh"><div><div class="muted small">${t('review.title', { id: tk.id })}</div><h2>${esc(inc.title)}</h2></div><button type="button" class="x" data-act="close-modal" aria-label="${t('review.close')}">×</button></div>
     <div class="score ${r.total >= 80 ? 'good' : r.total >= 50 ? 'mid' : 'bad'}"><b>${r.total}</b><span>/ 100</span>${r.critical ? `<em>${t('review.critical')}</em>` : ''}</div>
     <table class="rev"><tr><th>${t('review.colDim')}</th><th>${t('review.colYours')}</th><th>${t('review.colExp')}</th><th>${t('review.colPts')}</th></tr>
-    ${r.parts.map((p) => `<tr><td>${p.dim}</td><td>${esc(p.yours || '—')}${p.crit && p.crit.length ? `<div class="bad small">${t('review.critLabel')} ${esc(p.crit.join(' · '))}</div>` : ''}${p.wrong && p.wrong.length ? `<div class="warn small">${t('review.wrongLabel')} ${esc(p.wrong.join(' · '))}</div>` : ''}${p.missing && p.missing.length ? `<div class="muted small">${t('review.missingLabel')} ${esc(p.missing.join(' · '))}</div>` : ''}</td><td>${esc(p.exp)}</td><td class="mono">${p.pts}/${p.max}</td></tr>`).join('')}
+    ${r.parts.map((p) => `<tr><td>${p.dim}</td><td>${p.items ? actionItemsHtml(p) : esc(p.yours || '—')}${p.crit && p.crit.length ? `<div class="bad small">${t('review.critLabel')} ${esc(p.crit.join(' · '))}</div>` : ''}${p.wrong && p.wrong.length ? `<div class="warn small">${t('review.wrongLabel')} ${esc(p.wrong.join(' · '))}</div>` : ''}${p.missing && p.missing.length ? `<div class="muted small">${t('review.missingLabel')} ${esc(p.missing.join(' · '))}</div>` : ''}${p.notes && p.notes.length ? p.notes.map((n) => `<div class="escnote small">${esc(n)}</div>`).join('') : ''}</td><td>${esc(p.exp)}</td><td class="mono">${p.pts}/${p.max}</td></tr>`).join('')}
     ${r.pen ? `<tr><td>${t('review.dimTime')}</td><td colspan="2">${esc(r.notes.join(' '))}</td><td class="mono">−${r.pen}</td></tr>` : ''}
     </table>
     <div class="why"><b>${t('review.why')}</b><p>${esc(inc.why)}</p><p class="muted small">${esc(t('review.ref', { ref: inc.ref }))}</p></div>
     <div class="mf"><button class="btn" data-act="close-modal">${t('review.cont')}</button></div>`;
+}
+
+function actionItemsHtml(p) {
+  if (!p.items.length) return '—';
+  const ST = { done: 'field.stDone', declared: 'field.stDeclared', notdone: 'field.stNotDone', false: 'field.stFalse', unverified: 'field.stUnverified' };
+  return `<ul class="acti">${p.items.map((x) => `<li class="st-${x.st}${x.critical ? ' crit' : !x.ok ? ' wrong' : ''}">${esc(x.text)} <em>${esc(t(ST[x.st], { pen: p.notDonePen }))}</em></li>`).join('')}</ul>`;
 }
 
 function closeModal() { $('#modal').hidden = true; S.modal = false; lastTs = performance.now(); renderPanel(); renderInspector(); renderSummary(); scene.update(S.world, S.mode, sevMap()); }
@@ -501,6 +576,10 @@ document.addEventListener('click', async (e) => {
   else if (act === 'close-insp') { S.sel = null; scene.select(null); renderInspector(); }
   else if (scene.busy && (act === 'rack-detail' || act === 'pick-device' || act === 'insp-rack')) return;
   else if (act === 'tab') { S.tab = b.dataset.tab; renderPanel(); }
+  else if (act === 'fa') { if (!S.act) { S.confirm = b.dataset.fa; renderInspector(); } }
+  else if (act === 'fa-cancel') { S.confirm = null; renderInspector(); }
+  else if (act === 'fa-ok') startField(b.dataset.fa);
+  else if (act === 'fa-auth') { const fa = fieldById(b.dataset.fa); if (fa && requestAuth(S.world, fa)) { toast(t('field.askedToast', { label: fa.label.toLowerCase() })); renderInspector(); renderPanel(); } }
   else if (act === 'rack-detail') openRackView(b.dataset.rack);
   else if (act === 'pick-device') openRackView(b.dataset.rack, b.dataset.dev);
   else if (act === 'insp-rack') { S.sel = { kind: 'rack', id: b.dataset.rack }; scene.select('rack', b.dataset.rack); renderInspector(); }
@@ -555,6 +634,8 @@ $('#search').addEventListener('keydown', (e) => {
 });
 
 function updateSpeedUI() {
+  const ap = $('#actprog');
+  if (ap) { ap.hidden = !S.act; if (S.act) { ap.textContent = t('field.progressShort', { n: 0, m: S.act.fa.min }); ap.title = S.act.fa.verb; } }
   document.querySelectorAll('[data-speed]').forEach((b) => b.classList.toggle('on', S.running && Number(b.dataset.speed) === S.speed));
   $('#pause').textContent = S.running ? '❚❚' : '▶';
   $('#pause').setAttribute('aria-label', S.running ? t('header.pause') : t('header.resume'));
@@ -656,6 +737,22 @@ function route() {
   const h = location.hash.replace(/^#\/?/, '');
   if (h === 'turno') enterTurno();
   else showLanding(SOON.includes(h) ? h : null);
+}
+
+// ---------- API para pruebas automáticas (solo con ?test en la URL) -------------------------
+if (/[?&]test\b/.test(location.search)) {
+  window.__ronda = {
+    step(min) { advance(min); tickUI(); S.lastMinute = -1; tickUI(); },
+    select(kind, id) { S.sel = { kind, id }; renderInspector(); },
+    state() {
+      const w = S.world;
+      return {
+        t: w.t, level: S.level, act: S.act ? S.act.fa.id : null, impacts: w.impacts.map((i) => i.text), done: Object.keys(w.done),
+        tickets: S.tickets.map((x) => ({ id: x.id, inc: x.inc.id, proactive: !!x.proactive, closed: x.closedAt != null, total: x.result ? x.result.total : null, bonus: x.result ? x.result.bonus : 0, evidence: x.evidence.map((e) => e.id) })),
+        ended: S.ended,
+      };
+    },
+  };
 }
 
 applyI18n();
