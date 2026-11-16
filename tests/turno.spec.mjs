@@ -121,3 +121,23 @@ test('acción declarada sin hacer: cuenta como error en la corrección', async (
   await expect(page.locator('#modalbox .acti .st-notdone')).toContainText('no se hizo en la sala');
   expect(pts).toBe(60); // 25 + 15 + 20; acciones 0 (0/3 − 10); evidencia 0
 });
+
+test('hallazgo proactivo en E3: la alerta no salta y suma bonificación', async ({ page }) => {
+  await openGame(page);
+  await stepTo(page, 20);
+  await inspect(page, 'rack', 'R08');               // lo ve en la ronda
+  await doField(page, 'rack', 'R08', 'blank-install'); // y lo corrige antes de las 09:10
+  await stepTo(page, 72);
+  const s = await state(page);
+  const tk = s.tickets.find((x) => x.inc === 'E3');
+  expect(tk.proactive).toBe(true);
+  expect(tk.evidence).toEqual(expect.arrayContaining(['obs:r08-blank']));
+  await tab(page, 'monitoreo');
+  await expect(page.locator('#pane')).not.toContainText('ENV-R08-IN'); // la alerta no se produjo
+  await openTicket(page, 'E3');
+  await inspect(page, 'rack', 'R08');               // verificación posterior
+  const pts = await closeTicket(page, { cls: 'vp', prio: 'P3', acts: ['a2'], esc: ['nadie'], note: 'Paneles ciegos instalados en la ronda (hallazgo proactivo).' });
+  expect(pts).toBe(100);
+  await expect(page.locator('#modalbox .score .bonus')).toContainText('+10');
+  expect((await state(page)).tickets.find((x) => x.inc === 'E3').bonus).toBe(10);
+});

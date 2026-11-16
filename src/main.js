@@ -21,7 +21,7 @@ function freshState() {
     world: createWorld(), running: false, speed: 1, mode: 'estado', tab: 'monitoreo',
     tickets: [], active: null, started: new Set(), sel: null, ended: false, modal: false,
     notes: [], lastMinute: -1, seenSys: 0, begun: false,
-    level: 'normal', seen: {}, act: null, confirm: null,
+    level: 'normal', seen: {}, seenFirst: {}, act: null, confirm: null,
   };
 }
 
@@ -45,12 +45,12 @@ const scene = createScene($('#view3d'), {
 
 // ---------- Utilidades de estado ------------------------------------------------
 const openTickets = () => S.tickets.filter((t) => t.closedAt == null);
-const openIncidents = () => openTickets().map((t) => t.inc);
+const openIncidents = () => openTickets().filter((x) => !x.proactive).map((x) => x.inc);
 function sevMap() { const m = {}; RACKS.forEach((r) => (m[r.id] = rackSeverity(S.world, r.id, openIncidents()))); return m; }
 
 function allAlerts() {
   const w = S.world, list = [];
-  for (const inc of INCIDENTS) if (S.started.has(inc.id)) list.push({ t: inc.at, sev: inc.alert.sev, host: inc.alert.host, text: inc.alert.text, inc: inc.id, id: 'alert:' + inc.id });
+  for (const inc of INCIDENTS) if (S.started.has(inc.id) && !S.tickets.some((x) => x.inc === inc && x.proactive)) list.push({ t: w.sched[inc.id], sev: inc.alert.sev, host: inc.alert.host, text: inc.alert.text, inc: inc.id, id: 'alert:' + inc.id });
   for (const n of NOISE) if (n.t <= w.t) list.push({ t: n.t, sev: 'info', host: n.host, text: n.text, id: 'alert:N' + n.t });
   for (const a of w.sysAlerts) list.push({ ...a, id: 'alert:' + a.id });
   return list.sort((a, b) => b.t - a.t);
@@ -74,13 +74,24 @@ function advance(dt) {
     const d = Math.min(0.25, left);
     step(w, d); left -= d;
     for (const inc of INCIDENTS) {
-      if (!S.started.has(inc.id) && w.t >= inc.at) {
+      if (!S.started.has(inc.id) && w.t >= w.sched[inc.id]) {
         S.started.add(inc.id);
-        startIncident(w, inc);
-        const tk = { id: 'TK-' + (101 + S.tickets.length), inc, openedAt: inc.at, ackAt: null, closedAt: null, evidence: [], answer: null, result: null };
+        const at = w.sched[inc.id];
+        const fix = inc.proactive && w.done[inc.proactive];
+        if (!fix) startIncident(w, inc);
+        const tk = { id: 'TK-' + (101 + S.tickets.length), inc, openedAt: at, ackAt: null, closedAt: null, evidence: [], answer: null, result: null, proactive: !!fix, hints: 0 };
         S.tickets.push(tk);
+        if (fix) {
+          // las observaciones que el estudiante vio antes de corregir quedan como evidencia
+          const keys = Object.keys(S.seenFirst).filter((k) => inc.rack && k.includes(inc.rack) && S.seenFirst[k] <= fix.t);
+          if (keys.length) inc.evidence.filter((e) => e.startsWith('obs:')).forEach((e) => tk.evidence.push({ id: e, label: inc.title + ': ' + evLabel(e) }));
+          w.photos.filter((ph) => ph.inc === inc.id).forEach((ph) => tk.evidence.push({ id: ph.id, label: ph.label }));
+          w.log.push({ t: at, kind: 'ticket', text: t('proactive.log', { id: tk.id, title: inc.title }) });
+          toast(t('proactive.toast', { id: tk.id, title: esc(inc.title) }), null, () => openTicket(tk.id));
+          continue;
+        }
         w.photos.filter((ph) => ph.inc === inc.id).forEach((ph) => tk.evidence.push({ id: ph.id, label: ph.label }));
-        w.log.push({ t: inc.at, kind: 'alerta', text: `${SEV[inc.alert.sev].label}: ${inc.alert.text} → ${tk.id}` });
+        w.log.push({ t: at, kind: 'alerta', text: `${SEV[inc.alert.sev].label}: ${inc.alert.text} → ${tk.id}` });
         toast(`<b>${esc(SEV[inc.alert.sev].label)}</b> · ${esc(inc.alert.host)}<br>${esc(inc.alert.text)}<small>${t('ticket.created', { id: tk.id })}</small>`, inc.alert.sev, () => openTicket(tk.id));
       }
     }
@@ -117,8 +128,8 @@ function tickUI() {
 
 function skipToNext() {
   if (openTickets().length) { toast(t('ticket.openFirst')); return; }
-  const next = INCIDENTS.find((i) => !S.started.has(i.id));
-  const target = next ? next.at : SHIFT.length;
+  const next = INCIDENTS.filter((i) => !S.started.has(i.id)).sort((a, b) => S.world.sched[a.id] - S.world.sched[b.id])[0];
+  const target = next ? S.world.sched[next.id] : SHIFT.length;
   const dt = Math.max(0, target - S.world.t);
   if (dt <= 0) return;
   advance(dt + 0.01);
@@ -142,7 +153,7 @@ function renderSummary() {
     <div class="sevrow">${['disaster', 'high', 'average', 'warning', 'info'].map((k) => `<span>${statusIcon(k)}${SEV[k].label} <b>${counts[k]}</b></span>`).join('')}<span>${statusIcon('ok')}${t('summary.racksOk')} <b>${RACKS.length - affected}</b></span></div>`;
 }
 
-function markSeen(key) { if (S.begun) S.seen[key] = S.world.t; }
+function markSeen(key) { if (!S.begun) return; S.seen[key] = S.world.t; if (S.seenFirst[key] === undefined) S.seenFirst[key] = S.world.t; }
 
 function renderPanel() {
   const w = S.world, tab = S.tab;
@@ -172,7 +183,7 @@ function renderPanel() {
       const age = Math.floor((x.closedAt ?? w.t) - x.openedAt);
       return `<div class="row ticket ${x.id === S.active ? 'sel' : ''}" data-act="open" data-tk="${x.id}" tabindex="0">
         <div class="when">${x.id}</div>
-        <div class="body"><div class="host">${statusIcon(x.inc.alert.sev, { label: SEV[x.inc.alert.sev].label })}${esc(x.inc.title)} <span class="chip ${st === 'closed' ? 'done' : st === 'new' ? 'new' : ''}">${stLabel}</span></div>
+        <div class="body"><div class="host">${x.proactive ? `<span class="chip pro">${t('proactive.chip')}</span>` : statusIcon(x.inc.alert.sev, { label: SEV[x.inc.alert.sev].label })}${esc(x.inc.title)} <span class="chip ${st === 'closed' ? 'done' : st === 'new' ? 'new' : ''}">${stLabel}</span></div>
         <div class="muted">${esc(x.inc.alert.host)} · ${clock(x.openedAt)} · ${st === 'closed' ? t('ticket.resolvedIn', { min: age, pts: x.result.total }) : t('ticket.openFor', { min: age })}</div></div>
       </div>`;
     }).join('') : `<p class="empty">${t('panel.noTickets')}</p>`;
@@ -212,7 +223,7 @@ function ticketDetail(tk) {
   return `<div class="detail">
     <div class="dh"><span>${statusIcon(tk.inc.alert.sev, { label: SEV[tk.inc.alert.sev].label })}<b>${tk.id}</b> · ${esc(tk.inc.title)}</span><button class="x" data-act="close-detail" aria-label="${t('ticket.closeDetail')}">×</button></div>
     <div class="muted">${clock(tk.openedAt)} · ${esc(tk.inc.alert.host)} · ${SEV[tk.inc.alert.sev].label}</div>
-    <p>${esc(tk.inc.alert.text)}</p>
+    <p>${tk.proactive ? esc(t('proactive.detail')) : esc(tk.inc.alert.text)}</p>
     <div class="evh">${t('ticket.evidence', { n: tk.evidence.length })}</div>
     ${tk.evidence.length ? `<ul class="evl">${tk.evidence.map((e) => `<li>${esc(e.label)}${closed ? '' : ` <button class="link" data-act="detach" data-ev="${esc(e.id)}">${t('ticket.remove')}</button>`}</li>`).join('')}</ul>` : `<p class="muted small">${t('ticket.noEvidence')}</p>`}
     ${closed ? `<button class="btn ghost" data-act="review" data-tk="${tk.id}">${t('ticket.review', { pts: tk.result.total })}</button>` : `<button class="btn" data-act="resolve" data-tk="${tk.id}">${t('ticket.resolve')}</button>`}
@@ -459,7 +470,8 @@ function showReview(tk) {
   S.modal = true;
   $('#modal').hidden = false;
   $('#modalbox').innerHTML = `<div class="mh"><div><div class="muted small">${t('review.title', { id: tk.id })}</div><h2>${esc(inc.title)}</h2></div><button type="button" class="x" data-act="close-modal" aria-label="${t('review.close')}">×</button></div>
-    <div class="score ${r.total >= 80 ? 'good' : r.total >= 50 ? 'mid' : 'bad'}"><b>${r.total}</b><span>/ 100</span>${r.critical ? `<em>${t('review.critical')}</em>` : ''}</div>
+    <div class="score ${r.total >= 80 ? 'good' : r.total >= 50 ? 'mid' : 'bad'}"><b>${r.total}</b><span>/ 100</span>${r.bonus ? `<span class="bonus">+${r.bonus} ${t('proactive.bonus')}</span>` : ''}${r.critical ? `<em>${t('review.critical')}</em>` : ''}</div>
+    ${tk.proactive ? `<p class="muted small">${t('proactive.review')}</p>` : ''}
     <table class="rev"><tr><th>${t('review.colDim')}</th><th>${t('review.colYours')}</th><th>${t('review.colExp')}</th><th>${t('review.colPts')}</th></tr>
     ${r.parts.map((p) => `<tr><td>${p.dim}</td><td>${p.items ? actionItemsHtml(p) : esc(p.yours || '—')}${p.crit && p.crit.length ? `<div class="bad small">${t('review.critLabel')} ${esc(p.crit.join(' · '))}</div>` : ''}${p.wrong && p.wrong.length ? `<div class="warn small">${t('review.wrongLabel')} ${esc(p.wrong.join(' · '))}</div>` : ''}${p.missing && p.missing.length ? `<div class="muted small">${t('review.missingLabel')} ${esc(p.missing.join(' · '))}</div>` : ''}${p.notes && p.notes.length ? p.notes.map((n) => `<div class="escnote small">${esc(n)}</div>`).join('') : ''}</td><td>${esc(p.exp)}</td><td class="mono">${p.pts}/${p.max}</td></tr>`).join('')}
     ${r.pen ? `<tr><td>${t('review.dimTime')}</td><td colspan="2">${esc(r.notes.join(' '))}</td><td class="mono">−${r.pen}</td></tr>` : ''}
@@ -481,9 +493,10 @@ function metrics() {
   const closed = S.tickets.filter((x) => x.closedAt != null);
   const avg = (a) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0);
   const pts = INCIDENTS.reduce((s, inc) => { const x = S.tickets.find((k) => k.inc.id === inc.id); return s + (x && x.result ? x.result.total : 0); }, 0);
+  const bonus = S.tickets.reduce((s, x) => s + (x.result ? x.result.bonus || 0 : 0), 0);
   const avail = 1 - S.world.downMinutes / (TOTAL_DEVICES * SHIFT.length);
-  const slaOk = closed.filter((x) => !x.result.pen).length;
-  return { closed: closed.length, total: INCIDENTS.length, pts, max: INCIDENTS.length * 100, mtta: avg(closed.map((x) => x.result.ackT)), mttr: avg(closed.map((x) => x.result.resT)), avail, slaOk, maxTemp: S.world.maxTemp, impacts: S.world.impacts };
+  const slaOk = closed.filter((x) => !x.result.pen && !x.proactive).length;
+  return { closed: closed.length, total: INCIDENTS.length, pts, bonus, max: INCIDENTS.length * 100, mtta: avg(closed.map((x) => x.result.ackT)), mttr: avg(closed.map((x) => x.result.resT)), avail, slaOk, maxTemp: S.world.maxTemp, impacts: S.world.impacts };
 }
 
 function saveLastRun(data) {
@@ -504,13 +517,13 @@ function endShift() {
   if (S.ended) return;
   S.ended = true; S.running = false;
   const m = metrics();
-  saveLastRun({ pts: m.pts, max: m.max, fecha: new Date().toISOString().slice(0, 10) });
-  const pct = Math.round((m.pts / m.max) * 100);
+  saveLastRun({ pts: m.pts, bonus: m.bonus, max: m.max, level: S.level, fecha: new Date().toISOString().slice(0, 10) });
+  const pct = Math.min(100, Math.round(((m.pts + m.bonus) / m.max) * 100));
   const levels = t('end.levels');
   const nivel = levels[pct >= 85 ? 0 : pct >= 65 ? 1 : pct >= 40 ? 2 : 3];
   $('#endbox').innerHTML = `<h2>${t('end.title', { time: clock(S.world.t) })}</h2>
     <div class="endgrid">
-      <div class="kpi"><b>${m.pts}</b><span>${t('end.ptsOf', { max: m.max, pct })}</span><em>${nivel}</em></div>
+      <div class="kpi"><b>${m.pts}${m.bonus ? ` <small class="bonus">+${m.bonus}</small>` : ''}</b><span>${t('end.ptsOf', { max: m.max, pct })}${m.bonus ? ' · ' + t('end.bonus', { n: m.bonus }) : ''}</span><em>${nivel}</em></div>
       <div class="kpi"><b>${m.closed}/${m.total}</b><span>${t('end.closed')}</span></div>
       <div class="kpi"><b>${m.slaOk}/${m.closed || 0}</b><span>${t('end.inSla')}</span></div>
       <div class="kpi"><b>${Math.round(m.mtta)} min</b><span>${t('end.mtta')}</span></div>
@@ -535,15 +548,15 @@ function report() {
   const m = metrics();
   const L = [];
   L.push(t('report.title'), '', `${t('app.siteFull')} · ${t('app.role')} · ${new Date().toLocaleDateString('es-CL')}`, '');
-  L.push(t('report.score', { pts: m.pts, max: m.max }), t('report.tickets', { closed: m.closed, total: m.total, sla: m.slaOk }), t('report.times', { mtta: Math.round(m.mtta), mttr: Math.round(m.mttr) }), t('report.avail', { avail: (m.avail * 100).toFixed(2), temp: fmt1(m.maxTemp) }), '');
+  L.push(t('report.score', { pts: m.pts, max: m.max }) + (m.bonus ? ' ' + t('report.bonus', { n: m.bonus }) : ''), t('report.tickets', { closed: m.closed, total: m.total, sla: m.slaOk }), t('report.times', { mtta: Math.round(m.mtta), mttr: Math.round(m.mttr) }), t('report.avail', { avail: (m.avail * 100).toFixed(2), temp: fmt1(m.maxTemp) }), '');
   L.push(t('report.ticketsH'), '');
   for (const x of S.tickets) {
-    L.push(`### ${x.id} · ${x.inc.title} (${clock(x.openedAt)})`, '', t('report.alert', { host: x.inc.alert.host, text: x.inc.alert.text }), '');
+    L.push(`### ${x.id} · ${x.inc.title} (${clock(x.openedAt)})${x.proactive ? ' · ' + t('proactive.chip') : ''}`, '', x.proactive ? t('proactive.detail') : t('report.alert', { host: x.inc.alert.host, text: x.inc.alert.text }), '');
     if (!x.result) { L.push(t('report.notClosed'), ''); continue; }
     for (const p of x.result.parts) L.push(`- **${p.dim}** (${p.pts}/${p.max}): ${p.yours || '—'}`);
     if (x.evidence.length) L.push(t('report.evidence', { list: x.evidence.map((e) => e.label).join(' | ') }));
     if (x.answer.note) L.push(t('report.note', { note: x.answer.note }));
-    L.push(t('report.total', { total: x.result.total }), '', `> ${x.inc.why}`, '');
+    L.push(t('report.total', { total: x.result.total }) + (x.result.bonus ? ` (+${x.result.bonus})` : ''), '', `> ${x.inc.why}`, '');
   }
   if (m.impacts.length) { L.push(t('report.impactsH'), ''); m.impacts.forEach((i) => L.push(`- ${clock(i.t)} · ${i.text}`)); L.push(''); }
   L.push(t('report.logH'), '');

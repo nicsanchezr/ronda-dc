@@ -192,6 +192,8 @@ export const FIELD_ACTIONS = [
 //   seq: [ids]       → acciones en sala que deben hacerse en ese orden
 //   authorized / unauthorized → la acción en sala cuenta solo con / sin autorización del cliente
 //   (sin tipo)       → declarativa: se evalúa lo marcado en el formulario
+// proactive: 'id' → si esa acción en sala se hizo antes de la alerta, la alerta no salta y el
+//                  ticket se crea como «Hallazgo proactivo» (sin SLA y con bonificación).
 // ---------------------------------------------------------------------------
 
 export const INCIDENTS = [
@@ -228,7 +230,7 @@ export const INCIDENTS = [
     ref: 'RB-05 · ASHRAE TC 9.9 (puntos de medición en la entrada)',
   },
   {
-    id: 'E3', at: 70, rack: 'R08',
+    id: 'E3', at: 70, rack: 'R08', proactive: 'blank-install',
     alert: { sev: 'warning', host: 'ENV-R08-IN', text: 'Temperatura de entrada en aumento en R08 (sensor superior): 26,1 °C' },
     title: 'Temperatura en aumento en R08',
     expected: { cls: 'vp', prio: 'P3', esc: ['nadie'], escAllowed: ['cliente'] },
@@ -244,7 +246,7 @@ export const INCIDENTS = [
     ref: 'RB-05 · ASHRAE TC 9.9 · EU Code of Conduct for Data Centres (gestión de flujo de aire)',
   },
   {
-    id: 'E4', at: 110, rack: 'R06',
+    id: 'E4', at: 110, rack: 'R06', proactive: 'psu-move',
     alert: { sev: 'average', host: 'PDU-R06-B', text: 'PDU-B de R06 sobre el umbral: 84 % de la capacidad de la rama' },
     title: 'Carga alta en PDU-B de R06',
     expected: { cls: 'vp', prio: 'P2', esc: ['cliente'], escAllowed: ['jefe', 'elec'] },
@@ -312,7 +314,7 @@ export const INCIDENTS = [
     ref: 'RB-04 · TIA-942 (detección de fugas)',
   },
   {
-    id: 'E8', at: 380, rack: 'R02',
+    id: 'E8', at: 380, rack: 'R02', proactive: 'door-secure',
     alert: { sev: 'average', host: 'DOOR-R02-REAR', text: 'Puerta trasera de R02 abierta sin trabajo programado' },
     title: 'Puerta de R02 abierta',
     expected: { cls: 'vp', prio: 'P2', esc: ['seguridad', 'jefe'], escAllowed: ['cliente'] },
