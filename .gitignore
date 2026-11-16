@@ -4,3 +4,4 @@ playwright-report/
 
 # configuración local de Claude Code (no se publica)
 .claude/settings.local.json
+videos/

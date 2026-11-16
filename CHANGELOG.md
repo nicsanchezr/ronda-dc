@@ -2,6 +2,14 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). Versiones según [SemVer](https://semver.org/lang/es/).
 
+## [Sin publicar]
+
+### Agregado
+- **Video automático de la demo** (`npm run video`, `tools/video.mjs`): captura cuadro por cuadro con Playwright y Edge, con el reloj falso de la página avanzando 1/30 s por cuadro (temporizadores, `requestAnimationFrame` y `performance.now`) y sin transiciones CSS, y une los cuadros con ffmpeg en MP4 H.264 1920 × 1080 a 30 fps. Dos versiones, `videos/ronda-dc-demo-es.mp4` y `videos/ronda-dc-demo-en.mp4` (unos 90 s): modo grabación, tarjeta de inicio y de fin, subtítulos clave a velocidad normal y tramos de espera a ×8 con un indicador discreto.
+
+### Cambiado
+- Los vuelos de cámara de la demo siguen una curva que sube por sobre los racks y baja al punto final: en línea recta podían atravesar el techo de la contención.
+
 ## [0.5.1] · 2026-11-16
 
 ### Corregido

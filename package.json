@@ -6,6 +6,7 @@
     "build": "node build.mjs",
     "contrast": "node tools/contrast.mjs",
     "capturas": "node build.mjs && node tools/capturas.mjs",
+    "video": "node build.mjs && node tools/video.mjs",
     "test": "node build.mjs && playwright test"
   },
   "keywords": [],

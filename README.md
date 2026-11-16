@@ -115,6 +115,8 @@ Cada modo se puede enlazar directamente: [`#turno/normal/corto`](https://nicsanc
    - **OBS Studio:** fuente **Captura de pantalla** (o **Captura de ventana** del navegador), *Ajustes › Vídeo* con resolución base y de salida 1920 × 1080 a 30 o 60 fps, y formato MP4.
 3. La demo dura unos 4–5 minutos y termina en la pantalla de fin de turno; recorta el inicio y el final con el editor que prefieras. Para cambiar el idioma de los subtítulos, elige **ES** o **EN** antes de recargar.
 
+**O genera el video automáticamente** (`npm run video`, requiere [ffmpeg](https://ffmpeg.org): `winget install Gyan.FFmpeg`): captura la demo cuadro por cuadro con Playwright y Edge, con el reloj de la página detenido y avanzando exactamente 1/30 s por cuadro, así que sale fluido aunque el computador sea lento. Produce `videos/ronda-dc-demo-es.mp4` y `videos/ronda-dc-demo-en.mp4` (MP4 H.264, 1920 × 1080, 30 fps, unos 90 s, pensados para LinkedIn): tarjeta de inicio, subtítulos clave a velocidad normal, tramos de espera acelerados con un indicador «×8» y tarjeta final con la URL del sitio y del repositorio. `node tools/video.mjs en` genera solo uno; `--ventana` abre el navegador con ventana.
+
 **Temas:** *Gris de sala* (por defecto, pensado para proyector) y *Alto rendimiento*, que sigue el criterio ISA-101 de pantallas de operación: todo en grises y color solo para lo anormal. Ambos en claro y oscuro (o según el sistema), con contraste WCAG AA verificado.
 
 ## Marco de referencia
@@ -149,6 +151,7 @@ npm run build        # genera dist/index.html
 npm run contrast     # verifica el contraste WCAG AA de los temas
 npm test             # compila y corre las pruebas de Playwright (Edge en Windows, Chromium en CI)
 npm run capturas     # regenera las capturas de docs/capturas/ y el GIF de la demo (Edge en Windows)
+npm run video        # genera los videos de la demo en videos/ (Edge y ffmpeg)
 ```
 
 Abre `dist/index.html` directamente en el navegador. En cada push a `main`, GitHub Actions corre las pruebas (partida perfecta en español y en inglés, impactos, nivel Guiado, hallazgo proactivo, acción declarada sin hacer, turno corto y ⏭, checklist de ronda, glosario, diccionarios sin claves faltantes, cambio de idioma en vivo, demo completa en ambos idiomas, temas y transiciones) y, solo si pasan, publica `dist/` en GitHub Pages.
@@ -250,6 +253,8 @@ Every mode can be linked directly: [`#turno/normal/corto`](https://nicsanchezr.g
    - **OBS Studio:** a **Display Capture** source (or **Window Capture** of the browser), *Settings › Video* with base and output resolution at 1920 × 1080 and 30 or 60 fps, MP4 format.
 3. The demo takes about 4–5 minutes and ends on the end-of-shift screen; trim the start and end in any editor. To switch the caption language, choose **ES** or **EN** before reloading.
 
+**Or generate the video automatically** (`npm run video`, requires [ffmpeg](https://ffmpeg.org): `winget install Gyan.FFmpeg`): it captures the demo frame by frame with Playwright and Edge, with the page clock stopped and advanced exactly 1/30 s per frame, so it comes out smooth even on a slow computer. It produces `videos/ronda-dc-demo-es.mp4` and `videos/ronda-dc-demo-en.mp4` (MP4 H.264, 1920 × 1080, 30 fps, about 90 s, built for LinkedIn): an opening card, key captions at normal speed, waiting stretches sped up with a discreet “×8” badge and a closing card with the site and repository URLs. `node tools/video.mjs en` renders just one; `--ventana` opens a visible browser window.
+
 **Themes:** *Floor grey* (default, designed for projectors) and *High performance*, which follows the ISA-101 approach to operator displays: everything in greys, with color reserved for abnormal conditions. Both come in light and dark (or follow the system), with WCAG AA contrast verified.
 
 ### Reference framework
@@ -284,6 +289,7 @@ npm run build        # generates dist/index.html
 npm run contrast     # checks WCAG AA contrast for the themes
 npm test             # builds and runs the Playwright tests (Edge on Windows, Chromium in CI)
 npm run capturas     # regenerates the docs/capturas/ screenshots and the demo GIF (Edge on Windows)
+npm run video        # renders the demo videos into videos/ (Edge and ffmpeg)
 ```
 
 Open `dist/index.html` directly in the browser. On every push to `main`, GitHub Actions runs the tests (perfect game in Spanish and English, impacts, Guided level, proactive finding, action declared but not done, short shift and ⏭, rounds checklist, glossary, dictionaries with no missing keys, live language switch, the full demo in both languages, themes and transitions) and, only if they pass, publishes `dist/` to GitHub Pages.

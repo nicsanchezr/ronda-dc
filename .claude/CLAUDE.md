@@ -37,7 +37,7 @@ Contexto para Claude Code y para cualquier persona que contribuya. Ronda DC es u
 - ⏭ adelanta al siguiente evento o al fin de la acción en curso; con tickets abiertos solo avisa (en Guiado la sala no empeora).
 
 ## Comandos
-- `npm install`, `npm run build` (→ `dist/index.html`), `npm run contrast`, `npm test` (compila y corre Playwright).
+- `npm install`, `npm run build` (→ `dist/index.html`), `npm run contrast`, `npm test` (compila y corre Playwright), `npm run capturas` (`docs/capturas/`; `node tools/capturas.mjs tomas` → hoja de contactos) y `npm run video` (videos de la demo en `videos/`, excluida de git; requiere ffmpeg).
 - Con `?test` en la URL existe `window.__ronda` (`step`, `select`, `state`) para las pruebas; no usarla en la app. Las pruebas corren en GitHub Actions antes del deploy; si fallan, no se publica.
 - Con `--use-gl=swiftshader` el fondo de la escena sale negro (defecto de SwiftShader): para revisar colores, usar el renderizado normal del navegador. Para ver las barras de desplazamiento de Windows en Playwright, usar `ignoreDefaultArgs: ['--hide-scrollbars']`.
 

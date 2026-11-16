@@ -435,7 +435,19 @@ export function createScene(container, handlers) {
     if (detail) { exitRack(() => flyShot(res, kind, id, ms)); return true; }
     controls.minDistance = 0.5; // las tomas de la Demo pueden estar más cerca que la distancia mínima de la órbita
     if (ms <= 0 || reduceMotion.matches) { anim = null; camera.position.copy(res.pos); controls.target.copy(res.target); controls.update(); }
-    else flyTo(res.pos.clone(), res.target.clone(), ms);
+    else {
+      // Curva que sube por sobre los racks y baja al punto final (Bézier cúbica con los puntos de
+      // control sobre el origen y el destino): un vuelo en línea recta podía atravesar racks o techo.
+      const p0 = camera.position.clone(), p3 = res.pos.clone(), t0 = controls.target.clone(), t1 = res.target.clone();
+      const H = Math.max(3.6, p0.y, p3.y);
+      const p1 = new THREE.Vector3(p0.x, H, p0.z), p2 = new THREE.Vector3(p3.x, H, p3.z);
+      const direct = p0.distanceTo(p3) < 0.8; // tomas muy cercanas: sin subir
+      run(ms, (e) => {
+        if (direct) camera.position.lerpVectors(p0, p3, e);
+        else { const u = 1 - e; camera.position.set(0, 0, 0).addScaledVector(p0, u * u * u).addScaledVector(p1, 3 * u * u * e).addScaledVector(p2, 3 * u * e * e).addScaledVector(p3, e * e * e); }
+        controls.target.lerpVectors(t0, t1, e);
+      });
+    }
     select(kind, id);
     return true;
   }
