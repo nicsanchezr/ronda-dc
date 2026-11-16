@@ -1,3 +1,6 @@
 node_modules/
 test-results/
 playwright-report/
+
+# configuración local de Claude Code (no se publica)
+.claude/settings.local.json

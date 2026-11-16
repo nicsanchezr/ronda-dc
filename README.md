@@ -117,11 +117,11 @@ npm test             # compila y corre las pruebas de Playwright (Edge en Window
 
 Abre `dist/index.html` directamente en el navegador. En cada push a `main`, GitHub Actions corre las pruebas (partida perfecta, impactos, nivel Guiado, hallazgo proactivo, acción declarada sin hacer, glosario, temas y transiciones) y, solo si pasan, publica `dist/` en GitHub Pages.
 
-Estructura y convenciones del código: [`CLAUDE.md`](CLAUDE.md). Próximas mejoras: [`docs/ROADMAP.md`](docs/ROADMAP.md). Historial: [`CHANGELOG.md`](CHANGELOG.md).
+Estructura y convenciones del código: [`.claude/CLAUDE.md`](.claude/CLAUDE.md). Próximas mejoras: [`docs/ROADMAP.md`](docs/ROADMAP.md). Historial: [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Créditos y licencia
 
-Creado por **Nicolás Sánchez Rodríguez**, docente de DUOC UC e INACAP. Inspirado en el enfoque de [Blue-Jr](https://heindall92.github.io/Blue-Jr/): turno con alertas, tickets, decisiones corregidas al momento e informe final.
+Creado por **Nicolás Sánchez Rodríguez**. Inspirado en el enfoque de [Blue-Jr](https://heindall92.github.io/Blue-Jr/): turno con alertas, tickets, decisiones corregidas al momento e informe final.
 
 - Código: licencia [MIT](LICENSE).
 - Tipografías Barlow, JetBrains Mono y Atkinson Hyperlegible: SIL Open Font License 1.1 ([detalle](assets/fonts/LICENCIAS.md)).

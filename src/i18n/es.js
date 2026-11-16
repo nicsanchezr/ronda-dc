@@ -298,7 +298,7 @@ export default {
     lastTitle: 'Tu último turno',
     lastNone: 'Todavía no terminas un turno en este navegador.',
     lastRun: '{pts} de {max} pts · {date}',
-    credits: 'Creado por Nicolás Sánchez Rodríguez · DUOC UC / INACAP',
+    credits: 'Creado por Nicolás Sánchez Rodríguez',
     license: 'Código con licencia MIT',
     repo: 'Repositorio en GitHub',
     fictional: 'Empresa, personas y equipos son ficticios. Funciona sin conexión: no envía datos a ningún servidor.',
