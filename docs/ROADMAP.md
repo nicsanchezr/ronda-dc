@@ -1,6 +1,6 @@
 # Roadmap · Ronda DC
 
-> Estado al 16-11-2026 (v0.3.0): hechos los puntos 0, 1 y 2, y en parte el 5; además, acciones en sala, niveles con tutor, glosario y pruebas automáticas. Siguen el 3 (Checklist de ronda), el 4 (Demo) y el selector ES/EN. Historial en [`CHANGELOG.md`](../CHANGELOG.md); contexto del código en [`.claude/CLAUDE.md`](../.claude/CLAUDE.md).
+> Estado al 15-11-2026 (v0.4.0): hechos los puntos 0, 1, 2 y 3, y en parte el 5; además, acciones en sala, niveles con tutor, glosario, turno corto y pruebas automáticas. Siguen el 4 (Demo), el selector ES/EN y los nuevos puntos 6 (escenarios propios cargables), 7 (desafíos) y 8 (editor de escenarios). Historial en [`CHANGELOG.md`](../CHANGELOG.md); contexto del código en [`.claude/CLAUDE.md`](../.claude/CLAUDE.md).
 
 ## 0. Cambio de nombre a Ronda DC ✅
 - Reemplazar "Turno de Sala" por "Ronda DC" en el título, la cabecera, la portada, el informe Markdown, la clave de localStorage (`ronda-dc-ultimo`, migrando la anterior si existe), package.json y README.

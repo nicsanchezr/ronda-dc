@@ -8,7 +8,7 @@
 
 <p align="center">
   <b>Simulador 3D de un turno de operación en una sala de datacenter.</b><br>
-  Rondas, alertas, tickets, escalamiento y corrección inmediata. Un solo archivo HTML, sin servidor.
+  Checklist de ronda, alertas, tickets, escalamiento y corrección inmediata. Un solo archivo HTML, sin servidor.
 </p>
 
 <p align="center">
@@ -26,7 +26,7 @@
 
 ## Qué es
 
-**Ronda DC** pone al estudiante en el puesto de un **operador de sala N1** durante un turno de 08:00 a 15:00 en *Cordillera Colo · Sala A*, un colocation ficticio en Santiago con 10 racks de tres clientes, dos CRAC, dos UPS, detección de fugas y control de acceso.
+**Ronda DC** pone al estudiante en el puesto de un **operador de sala N1** durante un turno (corto, de 08:00 a 10:30, o completo, hasta las 15:00) en *Cordillera Colo · Sala A*, un colocation ficticio en Santiago con 10 racks de tres clientes, dos CRAC, dos UPS, detección de fugas y control de acceso.
 
 Las alertas de monitoreo abren tickets. El estudiante recorre la sala en 3D, revisa cada rack U por U, junta evidencia y decide: qué es un problema real, qué prioridad tiene, qué hacer y a quién escalar. Al cerrar cada ticket recibe la corrección al momento, con lo esperado, el porqué y la norma que lo respalda. Si se demora o toma una acción crítica, la sala empeora.
 
@@ -43,7 +43,7 @@ Las alertas de monitoreo abren tickets. El estudiante recorre la sala en 3D, rev
 
 ## Cómo se juega
 
-1. En la portada, elige **Turno** y su nivel (**Guiado**, **Normal** o **Experto**): la cámara entra a la sala y aparece un briefing breve (las mismas instrucciones quedan en el botón **?** durante todo el turno). Luego comienza el turno: el reloj avanza (1 minuto del turno = 5 segundos a 1×) y puedes pausar, acelerar o adelantar al siguiente evento.
+1. En la portada, elige **Turno**, su duración (**Corto**, 4 eventos y unos 12 min, o **Completo**, 8 eventos) y su nivel (**Guiado**, **Normal** o **Experto**): la cámara entra a la sala y aparece un briefing breve (las mismas instrucciones quedan en el botón **?** durante todo el turno). Luego comienza el turno: el reloj avanza (1 minuto del turno = 5 segundos a 1×) y puedes pausar, acelerar o adelantar (⏭) al siguiente evento; si adelantas con tickets abiertos, la sala sigue empeorando.
 2. Las alertas de severidad Advertencia o superior **crean un ticket**. En la sala, los racks con alarma muestran un contorno y un ícono cuya forma indica la prioridad: cuadrado (1), rombo (2), triángulo (3).
 3. **Inspecciona:** clic en racks, CRAC, UPS o el piso. **Doble clic en un rack** para verlo de cerca, por delante y por detrás: cada equipo con sus LED, sus fuentes y la PDU a la que va cada una.
 4. **Adjunta evidencia** (📎) desde la sala, el monitoreo, el calendario de cambios y el registro de accesos.
@@ -59,6 +59,12 @@ Las alertas de monitoreo abren tickets. El estudiante recorre la sala en 3D, rev
 
 ![Tooltip del glosario sobre «IPMI» en el inspector de R08](docs/capturas/glosario.png)
 
+### Checklist de ronda
+
+Antes del turno (o como actividad corta de clase), el estudiante recorre la sala y revisa 10 puntos: temperatura, CRAC, UPS, redundancia A/B, paneles ciegos, puertas, detección de incendios, orden y limpieza, control de acceso y piso técnico. Marca cada uno como **OK**, **observación** o **falla** y adjunta la evidencia desde el inspector. Hay cinco hallazgos plantados; corregir en la sala lo que está a su alcance suma puntos, y al terminar puede comenzar el turno con la sala tal como la dejó. En Guiado, cada ítem explica qué revisar y por qué.
+
+![Checklist de ronda en Guiado: el ítem «Paneles ciegos» marcado como falla, con la evidencia de R08 adjunta](docs/capturas/checklist.png)
+
 | Vista de detalle del rack | Corrección de un ticket |
 |---|---|
 | ![Trasera del rack R06: las dos fuentes de k8s-n7 van a la PDU-B](docs/capturas/rack.png) | ![Corrección del ticket TK-101 con 95 de 100 puntos y la explicación](docs/capturas/correccion.png) |
@@ -72,12 +78,12 @@ Las alertas de monitoreo abren tickets. El estudiante recorre la sala en 3D, rev
 
 ![Portada de Ronda DC con los tres modos y la sala girando de fondo](docs/capturas/portada.png)
 
-Cada modo se puede enlazar directamente: [`#turno`](https://nicsanchezr.github.io/ronda-dc/#turno) (o [`#turno/guiado`](https://nicsanchezr.github.io/ronda-dc/#turno/guiado) y [`#turno/experto`](https://nicsanchezr.github.io/ronda-dc/#turno/experto)), [`#checklist`](https://nicsanchezr.github.io/ronda-dc/#checklist) y [`#demo`](https://nicsanchezr.github.io/ronda-dc/#demo).
+Cada modo se puede enlazar directamente: [`#turno/normal/corto`](https://nicsanchezr.github.io/ronda-dc/#turno/normal/corto) (`#turno/<nivel>/<duración>`, con nivel `guiado`, `normal` o `experto` y duración `corto` o `completo`), [`#checklist/guiado`](https://nicsanchezr.github.io/ronda-dc/#checklist/guiado) (`#checklist/<nivel>`) y [`#demo`](https://nicsanchezr.github.io/ronda-dc/#demo).
 
 | Modo | Estado | Descripción |
 |---|---|---|
-| **Turno** | Disponible | El turno completo de 08:00 a 15:00 con ocho eventos, acciones en sala, corrección por ticket e informe final. Tres niveles: **Guiado** (tutor paso a paso, tutorial de la interfaz, pistas y sin presión de tiempo), **Normal** (pistas limitadas que cuestan puntos) y **Experto** (sin pistas, el reloj no se detiene al cerrar y hay eventos que coinciden). |
-| **Checklist de ronda** | Próximamente | Ronda de inicio de turno con ítems verificables en la sala (temperatura, CRAC, UPS, puertas, paneles ciegos, piso técnico, VESDA, control de acceso), con hallazgos plantados. |
+| **Turno** | Disponible | Corto (08:00–10:30, 4 eventos, unos 12 min) o completo (08:00–15:00, 8 eventos), con acciones en sala, corrección por ticket e informe final. Tres niveles: **Guiado** (tutor paso a paso, tutorial de la interfaz, pistas y sin presión de tiempo), **Normal** (pistas limitadas que cuestan puntos) y **Experto** (sin pistas, el reloj no se detiene al cerrar y hay eventos que coinciden). |
+| **Checklist de ronda** | Disponible | Ronda de inicio de turno de 10 a 15 min: 10 ítems verificables en la sala (temperatura, CRAC, UPS, redundancia A/B, paneles ciegos, puertas, VESDA y extintores, limpieza, control de acceso, piso técnico) con cinco hallazgos plantados, puntaje propio e informe. Se juega sola o antes de un turno, en los tres niveles. |
 | **Demo** | Próximamente | Reproducción automática con un operador que inspecciona, adjunta evidencia y cierra los tickets, con subtítulos. Pensado para ferias y clases. |
 
 **Temas:** *Gris de sala* (por defecto, pensado para proyector) y *Alto rendimiento*, que sigue el criterio ISA-101 de pantallas de operación: todo en grises y color solo para lo anormal. Ambos en claro y oscuro (o según el sistema), con contraste WCAG AA verificado.
@@ -100,7 +106,7 @@ También se citan Uptime Institute Tiers (redundancia), IEEE 1188 (baterías) y 
 
 - **Un solo archivo HTML** (`dist/index.html`, unos 900 KB): JavaScript, CSS, tipografías y escena 3D incluidos.
 - **Sin servidor y sin peticiones externas:** no carga nada de Internet, no tiene analítica ni cookies. Funciona sin conexión.
-- Lo único que se guarda es local, en el navegador (`localStorage`): el último puntaje, el nivel y el tema elegidos.
+- Lo único que se guarda es local, en el navegador (`localStorage`): el último puntaje, el nivel, la duración y el tema elegidos.
 - [Three.js](https://threejs.org) 0.160 para la escena 3D y [esbuild](https://esbuild.github.io) para empaquetar.
 - Empresa, personas, clientes, equipos y modelos son **ficticios**.
 
@@ -115,7 +121,7 @@ npm run contrast     # verifica el contraste WCAG AA de los temas
 npm test             # compila y corre las pruebas de Playwright (Edge en Windows, Chromium en CI)
 ```
 
-Abre `dist/index.html` directamente en el navegador. En cada push a `main`, GitHub Actions corre las pruebas (partida perfecta, impactos, nivel Guiado, hallazgo proactivo, acción declarada sin hacer, glosario, temas y transiciones) y, solo si pasan, publica `dist/` en GitHub Pages.
+Abre `dist/index.html` directamente en el navegador. En cada push a `main`, GitHub Actions corre las pruebas (partida perfecta, impactos, nivel Guiado, hallazgo proactivo, acción declarada sin hacer, turno corto y ⏭, checklist de ronda, glosario, temas y transiciones) y, solo si pasan, publica `dist/` en GitHub Pages.
 
 Estructura y convenciones del código: [`.claude/CLAUDE.md`](.claude/CLAUDE.md). Próximas mejoras: [`docs/ROADMAP.md`](docs/ROADMAP.md). Historial: [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -134,7 +140,7 @@ Creado por **Nicolás Sánchez Rodríguez**. Inspirado en el enfoque de [Blue-Jr
 **Ronda DC** is a 3D, browser-based simulator of a shift as a level-1 operator on a data center floor. Monitoring alerts open tickets; you walk the room, inspect racks unit by unit (front and rear, with LEDs, power supplies and A/B PDUs), attach evidence, then classify, prioritise, act and escalate. Each ticket is graded on the spot with the expected answer, the reasoning and the standard behind it (ASHRAE TC 9.9, TIA-942, ISO/IEC 27001, ISO/IEC 20000, ITIL). The shift ends with a score, MTTA/MTTR, availability and a Markdown handover report.
 
 - **Play it:** <https://nicsanchezr.github.io/ronda-dc/>
-- **Modes:** Shift (available; Guided, Normal and Expert levels), Rounds checklist and Demo (coming soon).
+- **Modes:** Shift (short, 4 events and about 12 minutes, or full, 8 events; Guided, Normal and Expert levels), Rounds checklist (available: 10 items marked OK / observation / fault with evidence, five planted findings, its own score and report) and Demo (coming soon).
 - **Hands-on actions:** fix things in the room (reseat a sensor, install blanking panels, contain a leak, take photos…); customer equipment requires their authorisation. Declaring an action you did not perform counts as an error.
 - **Glossary:** technical terms are underlined with beginner-friendly definitions, also on touch screens.
 - **Themes:** *Floor grey* (default) and *High performance* (ISA-101 style), each in light and dark.

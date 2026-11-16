@@ -2,7 +2,25 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). Versiones según [SemVer](https://semver.org/lang/es/).
 
-## [0.3.0] · 2026-11-16
+## [0.4.0] · 2026-11-15
+
+### Agregado
+- **Duración de las partidas:** en la tarjeta Turno se elige **Corto** (4 eventos, de 08:00 a 10:30, unos 12 min reales a 1×: E1 benigno, E3 paneles ciegos, E6 falla crítica de CRAC-2 y E7 fuga) o **Completo** (los 8 eventos, unos 35 min a 1×). Rutas `#turno/<nivel>/<duración>`; sin duración, completo.
+- **Checklist de ronda** (`#checklist/<nivel>`): ronda de inicio de turno con 10 ítems que se marcan OK, observación o falla, con evidencia adjuntada desde el inspector. Cinco hallazgos plantados: bandeja de condensado de CRAC-1 casi llena, k8s-n7 con las dos fuentes en PDU-B, paneles ciegos faltantes en R08, extintor de CO₂ vencido y una caja de embalaje junto a R06 (nueva acción «Retirar el embalaje»). Puntaje propio (revisado, estado y evidencia; marcar sin revisar no suma) con +3 por hallazgo corregido, resultado con el hallazgo y su referencia, e informe Markdown. Se juega sola (10 a 15 min) o antes de un turno: «Comenzar el turno con esta sala» conserva lo corregido. Disponible en los tres niveles: en Guiado cada ítem explica qué revisar y por qué.
+- Panel junto a la puerta de la sala con el estado de la detección de humo (VESDA) y del extintor.
+- Pruebas: turno corto, ⏭ con tickets abiertos y durante una acción, y cuatro pruebas del checklist.
+
+### Cambiado
+- **⏭ siempre disponible:** adelanta al siguiente evento o al fin de la acción en curso. Con tickets abiertos ya no se bloquea: avisa que la sala seguirá empeorando (en Guiado, que no empeora).
+- **Tutorial de Guiado** en 4 pasos, con botón «Saltar tutorial».
+- Créditos: «Creado por Nicolás Sánchez Rodríguez». `CLAUDE.md` pasa a `.claude/CLAUDE.md`, reescrito para quien contribuya.
+- ROADMAP: nuevos puntos de escenarios propios cargables (JSON declarativo, local), desafíos con eventos encadenados y editor de escenarios.
+
+### Corregido
+- La recirculación de R08 y la carga de la PDU-B ya no dependen de horarios fijos: siguen el calendario de eventos del turno elegido.
+- Fecha de la versión 0.3.0 (era el 15-11-2026).
+
+## [0.3.0] · 2026-11-15
 
 ### Agregado
 - **Acciones en sala** desde el inspector (22 acciones: reubicar el sensor de R04, instalar paneles ciegos, levantar la baldosa, colocar absorbente, fotografiar, asegurar la puerta, subir CRAC-1…), con confirmación neutra, reloj a 8× con indicador de progreso, animación 3D y registro en la bitácora. La dinámica de la sala responde a la acción real.
