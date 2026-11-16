@@ -105,6 +105,7 @@ Cada modo se puede enlazar directamente: [`#turno/normal/corto`](https://nicsanc
 - **Al tocar la sala o el panel**, la demo se pausa y ofrece **«Seguir viendo»** o **«Jugar yo desde aquí»**: la partida sigue tal como está, ahora en manos del estudiante.
 - **Kiosco** ([`#demo/kiosco`](https://nicsanchezr.github.io/ronda-dc/#demo/kiosco)): sin controles, en bucle, y vuelve al inicio tras 60 s sin interacción. Pide pantalla completa al primer toque; para dejarlo fijo en una feria, abre el navegador en modo kiosco, por ejemplo `msedge --kiosk "https://nicsanchezr.github.io/ronda-dc/#demo/kiosco" --edge-kiosk-type=fullscreen` (o pulsa **F11**).
 - **Grabación** ([`#demo/grabar`](https://nicsanchezr.github.io/ronda-dc/#demo/grabar)): sin cursor ni controles y con subtítulos grandes, pensado para un video de 1920 × 1080 (por ejemplo, para LinkedIn). Parte con la portada unos segundos y luego entra a la sala.
+- **Grabación vertical** ([`#demo/grabar-vertical`](https://nicsanchezr.github.io/ronda-dc/#demo/grabar-vertical)): formato 4:5 para el feed del celular (1080 × 1350). La escena ocupa toda la pantalla, sin cabecera ni panel; la alerta que llega, el ticket con su evidencia, la acción en sala y la corrección con su puntaje aparecen como tarjetas grandes que se van cuando ya no hacen falta. Subtítulos grandes de máximo dos líneas en el tercio inferior, encuadres más cerrados ([hoja de contactos](docs/demo-tomas-vertical.png)) y un guion más corto (unos 75 s).
 
 **Cómo grabar el video (1920 × 1080):**
 
@@ -115,7 +116,9 @@ Cada modo se puede enlazar directamente: [`#turno/normal/corto`](https://nicsanc
    - **OBS Studio:** fuente **Captura de pantalla** (o **Captura de ventana** del navegador), *Ajustes › Vídeo* con resolución base y de salida 1920 × 1080 a 30 o 60 fps, y formato MP4.
 3. La demo dura unos 4–5 minutos y termina en la pantalla de fin de turno; recorta el inicio y el final con el editor que prefieras. Para cambiar el idioma de los subtítulos, elige **ES** o **EN** antes de recargar.
 
-**O genera el video automáticamente** (`npm run video`, requiere [ffmpeg](https://ffmpeg.org): `winget install Gyan.FFmpeg`): captura la demo cuadro por cuadro con Playwright y Edge, con el reloj de la página detenido y avanzando exactamente 1/30 s por cuadro, así que sale fluido aunque el computador sea lento. Produce `videos/ronda-dc-demo-es.mp4` y `videos/ronda-dc-demo-en.mp4` (MP4 H.264, 1920 × 1080, 30 fps, unos 90 s, pensados para LinkedIn): tarjeta de inicio, subtítulos clave a velocidad normal, tramos de espera acelerados con un indicador «×8» y tarjeta final con la URL del sitio y del repositorio. `node tools/video.mjs en` genera solo uno; `--ventana` abre el navegador con ventana.
+**O genera el video automáticamente** (`npm run video`, requiere [ffmpeg](https://ffmpeg.org): `winget install Gyan.FFmpeg` en Windows, `brew install ffmpeg` en macOS): captura la demo cuadro por cuadro con Playwright (Edge en Windows, el Chromium de Playwright en macOS y Linux; se puede elegir con `RONDA_BROWSER=msedge|chrome|chromium`), con el reloj de la página detenido y avanzando exactamente 1/30 s por cuadro, así que sale fluido aunque el computador sea lento. Produce `videos/ronda-dc-demo-es.mp4` y `videos/ronda-dc-demo-en.mp4` (MP4 H.264, 1920 × 1080, 30 fps, unos 90 s, pensados para LinkedIn): tarjeta de inicio, subtítulos clave a velocidad normal, tramos de espera acelerados con un indicador «×8» y tarjeta final con la URL del sitio y del repositorio. `node tools/video.mjs en` genera solo uno; `--ventana` abre el navegador con ventana.
+
+**Versión vertical para el feed** (`npm run video:vertical`): el mismo sistema cuadro por cuadro sobre `#demo/grabar-vertical`. Produce `videos/ronda-dc-demo-es-4x5.mp4` y `videos/ronda-dc-demo-en-4x5.mp4` (MP4 H.264, 1080 × 1350, 30 fps, unos 75 s): tarjetas de inicio y de cierre adaptadas al formato, con la URL del sitio bien visible al final. `node tools/video.mjs en --vertical` genera solo uno. La hoja de contactos de sus tomas se regenera con `node tools/capturas.mjs tomas-vertical`.
 
 **Temas:** *Gris de sala* (por defecto, pensado para proyector) y *Alto rendimiento*, que sigue el criterio ISA-101 de pantallas de operación: todo en grises y color solo para lo anormal. Ambos en claro y oscuro (o según el sistema), con contraste WCAG AA verificado.
 
@@ -150,8 +153,9 @@ npm install
 npm run build        # genera dist/index.html
 npm run contrast     # verifica el contraste WCAG AA de los temas
 npm test             # compila y corre las pruebas de Playwright (Edge en Windows, Chromium en CI)
-npm run capturas     # regenera las capturas de docs/capturas/ y el GIF de la demo (Edge en Windows)
-npm run video        # genera los videos de la demo en videos/ (Edge y ffmpeg)
+npm run capturas     # regenera las capturas de docs/capturas/, las hojas de contactos y el GIF de la demo
+npm run video        # genera los videos de la demo en videos/ (16:9, 1920 × 1080; requiere ffmpeg)
+npm run video:vertical  # versión 4:5 para el feed del celular (1080 × 1350)
 ```
 
 Abre `dist/index.html` directamente en el navegador. En cada push a `main`, GitHub Actions corre las pruebas (partida perfecta en español y en inglés, impactos, nivel Guiado, hallazgo proactivo, acción declarada sin hacer, turno corto y ⏭, checklist de ronda, glosario, diccionarios sin claves faltantes, cambio de idioma en vivo, demo completa en ambos idiomas, temas y transiciones) y, solo si pasan, publica `dist/` en GitHub Pages.
@@ -243,6 +247,7 @@ Every mode can be linked directly: [`#turno/normal/corto`](https://nicsanchezr.g
 - **Touching the data hall or the panel** pauses the demo and offers **“Keep watching”** or **“Play from here”**: the shift carries on exactly as it is, now in the student’s hands.
 - **Kiosk** ([`#demo/kiosco`](https://nicsanchezr.github.io/ronda-dc/#demo/kiosco)): no controls, loops forever and returns to the start after 60 s without interaction. It asks for full screen on the first touch; to lock it at a fair, open the browser in kiosk mode, for example `msedge --kiosk "https://nicsanchezr.github.io/ronda-dc/#demo/kiosco" --edge-kiosk-type=fullscreen` (or press **F11**).
 - **Recording** ([`#demo/grabar`](https://nicsanchezr.github.io/ronda-dc/#demo/grabar)): no cursor or controls and large captions, designed for a 1920 × 1080 video (for example, for LinkedIn). It opens on the home page for a few seconds and then flies into the data hall.
+- **Vertical recording** ([`#demo/grabar-vertical`](https://nicsanchezr.github.io/ronda-dc/#demo/grabar-vertical)): 4:5 format for the mobile feed (1080 × 1350). The scene fills the screen with no header or side panel; the incoming alert, the ticket with its evidence, the floor action and the score appear as large cards that leave once they are no longer needed. Large captions of two lines at most in the lower third, tighter framing ([contact sheet](docs/demo-tomas-vertical.png)) and a shorter script (about 75 s).
 
 **How to record the video (1920 × 1080):**
 
@@ -253,7 +258,9 @@ Every mode can be linked directly: [`#turno/normal/corto`](https://nicsanchezr.g
    - **OBS Studio:** a **Display Capture** source (or **Window Capture** of the browser), *Settings › Video* with base and output resolution at 1920 × 1080 and 30 or 60 fps, MP4 format.
 3. The demo takes about 4–5 minutes and ends on the end-of-shift screen; trim the start and end in any editor. To switch the caption language, choose **ES** or **EN** before reloading.
 
-**Or generate the video automatically** (`npm run video`, requires [ffmpeg](https://ffmpeg.org): `winget install Gyan.FFmpeg`): it captures the demo frame by frame with Playwright and Edge, with the page clock stopped and advanced exactly 1/30 s per frame, so it comes out smooth even on a slow computer. It produces `videos/ronda-dc-demo-es.mp4` and `videos/ronda-dc-demo-en.mp4` (MP4 H.264, 1920 × 1080, 30 fps, about 90 s, built for LinkedIn): an opening card, key captions at normal speed, waiting stretches sped up with a discreet “×8” badge and a closing card with the site and repository URLs. `node tools/video.mjs en` renders just one; `--ventana` opens a visible browser window.
+**Or generate the video automatically** (`npm run video`, requires [ffmpeg](https://ffmpeg.org): `winget install Gyan.FFmpeg` on Windows, `brew install ffmpeg` on macOS): it captures the demo frame by frame with Playwright (Edge on Windows, Playwright’s Chromium on macOS and Linux; choose with `RONDA_BROWSER=msedge|chrome|chromium`), with the page clock stopped and advanced exactly 1/30 s per frame, so it comes out smooth even on a slow computer. It produces `videos/ronda-dc-demo-es.mp4` and `videos/ronda-dc-demo-en.mp4` (MP4 H.264, 1920 × 1080, 30 fps, about 90 s, built for LinkedIn): an opening card, key captions at normal speed, waiting stretches sped up with a discreet “×8” badge and a closing card with the site and repository URLs. `node tools/video.mjs en` renders just one; `--ventana` opens a visible browser window.
+
+**Vertical version for the feed** (`npm run video:vertical`): the same frame-by-frame system on `#demo/grabar-vertical`. It produces `videos/ronda-dc-demo-es-4x5.mp4` and `videos/ronda-dc-demo-en-4x5.mp4` (MP4 H.264, 1080 × 1350, 30 fps, about 75 s): opening and closing cards adapted to the format, with the site URL clearly visible at the end. `node tools/video.mjs en --vertical` renders just one. Its shot contact sheet is regenerated with `node tools/capturas.mjs tomas-vertical`.
 
 **Themes:** *Floor grey* (default, designed for projectors) and *High performance*, which follows the ISA-101 approach to operator displays: everything in greys, with color reserved for abnormal conditions. Both come in light and dark (or follow the system), with WCAG AA contrast verified.
 
@@ -288,8 +295,9 @@ npm install
 npm run build        # generates dist/index.html
 npm run contrast     # checks WCAG AA contrast for the themes
 npm test             # builds and runs the Playwright tests (Edge on Windows, Chromium in CI)
-npm run capturas     # regenerates the docs/capturas/ screenshots and the demo GIF (Edge on Windows)
-npm run video        # renders the demo videos into videos/ (Edge and ffmpeg)
+npm run capturas     # regenerates the docs/capturas/ screenshots, the contact sheets and the demo GIF
+npm run video        # renders the demo videos into videos/ (16:9, 1920 × 1080; requires ffmpeg)
+npm run video:vertical  # 4:5 version for the mobile feed (1080 × 1350)
 ```
 
 Open `dist/index.html` directly in the browser. On every push to `main`, GitHub Actions runs the tests (perfect game in Spanish and English, impacts, Guided level, proactive finding, action declared but not done, short shift and ⏭, rounds checklist, glossary, dictionaries with no missing keys, live language switch, the full demo in both languages, themes and transitions) and, only if they pass, publishes `dist/` to GitHub Pages.

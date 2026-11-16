@@ -429,6 +429,25 @@ export function createScene(container, handlers) {
     }
     return null;
   }
+  /** Diagnóstico de una toma (pruebas y herramientas): por candidato, si queda dentro de un objeto y qué tapa la vista. */
+  function probeShot(shot) {
+    const box = targetBox(shot.kind, shot.id); if (!box) return null;
+    const c = box.getCenter(new THREE.Vector3()), size = box.getSize(new THREE.Vector3());
+    const { n, side } = frontOf(shot.kind, shot.id);
+    const rel = ([s, u, f]) => c.clone().addScaledVector(side, s).add(new THREE.Vector3(0, u, 0)).addScaledVector(n, f);
+    const target = rel(shot.look || [0, 0, 0]);
+    const samples = [target, target.clone().add(new THREE.Vector3(0, size.y * 0.25, 0)), target.clone().add(new THREE.Vector3(0, -size.y * 0.25, 0))];
+    return shot.cands.map((cand) => {
+      const pos = rel(cand);
+      const hits = samples.map((to) => {
+        const dir = to.clone().sub(pos); const dist = dir.length(); dir.normalize();
+        occRay.set(pos, dir); occRay.near = 0; occRay.far = Math.max(0, dist - 0.03);
+        const h = occRay.intersectObjects(pickables, false).find((x) => x.object.visible && !(x.object.userData && x.object.userData.kind === shot.kind && x.object.userData.id === shot.id));
+        return h ? `${h.object.userData.kind || '?'}:${h.object.userData.id || h.object.name || '?'}` : null;
+      });
+      return { pos: pos.toArray().map((v) => +v.toFixed(2)), inside: insideAny(pos), hits };
+    });
+  }
   /** Vuela a una toma ya resuelta (ms = 0: salto inmediato). */
   function flyShot(res, kind, id, ms = 1600) {
     if (busy || !res) return false;
@@ -451,6 +470,13 @@ export function createScene(container, handlers) {
     select(kind, id);
     return true;
   }
+  /** Campo de visión vertical en grados (el formato vertical 4:5 usa uno más amplio: su campo horizontal es angosto). */
+  const FOV = camera.fov, DETAIL_R = 3.7;
+  /** Campo de visión vertical (sin valor: el de siempre) y distancia de la vista de detalle del rack. */
+  function setFov(deg, detailR) { camera.fov = deg || FOV; R_CAM = detailR || DETAIL_R; camera.updateProjectionMatrix(); }
+  /** Muestra u oculta las etiquetas e íconos flotantes (el formato vertical los oculta: tapan poco cuadro y la tarjeta ya los dice). */
+  let floating = true;
+  function setFloating(on) { floating = on; labels.forEach((l) => { l.visible = on; }); }
   /** Corre el encuadre a la derecha (px de pantalla) para que el objetivo no quede bajo el inspector. */
   function setFrameOffset(px) {
     const w = container.clientWidth;
@@ -583,7 +609,8 @@ export function createScene(container, handlers) {
   });
   const ENTER_MS = 950, SIDE_MS = 900;
   // en coordenadas del rack: el rack queda a la derecha del centro para no quedar bajo el inspector
-  const R_CAM = 3.7, CAM_Y = 1.2, TGT_Y = 1.0, TGT_X = 0.32;
+  const CAM_Y = 1.2, TGT_Y = 1.0, TGT_X = 0.32;
+  let R_CAM = 3.7; // distancia de la cámara al rack en la vista de detalle (setFov la acorta en el formato vertical)
   const camAt = (theta, r = R_CAM, y = CAM_Y) => new THREE.Vector3(Math.sin(theta) * r, y, Math.cos(theta) * r);
   const tgtAt = (theta) => new THREE.Vector3(-Math.cos(theta) * TGT_X, TGT_Y, Math.sin(theta) * TGT_X);
   const toWorld = (v) => RV.root.localToWorld(v.clone());
@@ -718,7 +745,7 @@ export function createScene(container, handlers) {
       const prio = priorityOf(sev);
       // estado: contorno + ícono de prioridad (en todos los temas)
       R.outline.visible = prio > 0;
-      R.icon.visible = prio > 0;
+      R.icon.visible = prio > 0 && floating;
       if (prio > 0) {
         R.outlineMat.color.set(T.sev[sev]);
         const key = sev + T.id + T.mode;
@@ -804,7 +831,7 @@ export function createScene(container, handlers) {
   return {
     update(w, m, sev) { world = w; mode = m; sevMap = sev; sync(); },
     setView, focus, select, enterRack, exitRack, rackSide, focusDevice, setLanding,
-    resolveShot, flyShot, setFrameOffset, cancel,
+    resolveShot, probeShot, flyShot, setFrameOffset, setFov, setFloating, cancel,
     /** Vuelve a los límites normales de la órbita (al terminar las tomas de la Demo). */
     restoreOrbit() { if (!detail) controls.minDistance = 2.2; },
     get camPose() { return { pos: camera.position.toArray(), target: controls.target.toArray() }; },

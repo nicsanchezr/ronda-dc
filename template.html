@@ -246,6 +246,41 @@ body[data-demo="grabar"] #demosub .dk{font-size:15px}
 #democard p{font:500 30px var(--head);color:var(--mut);margin:6px 0}
 #democard p.url{font:600 36px var(--mono);color:var(--acc-text);margin:0 0 22px}
 @media (prefers-reduced-motion:reduce){.demo-press{animation:none}}
+/* ---------- Demo vertical 4:5 (#demo/grabar-vertical): la escena a pantalla completa, sin cabecera ni panel;
+   tarjetas grandes arriba, subtítulos en el tercio inferior (medidas en vw: escalan con el ancho) ---------- */
+body[data-demo="vertical"],body[data-demo="vertical"] *{cursor:none!important}
+body[data-demo="vertical"] header,body[data-demo="vertical"] aside,body[data-demo="vertical"] #toasts,body[data-demo="vertical"] #modal,body[data-demo="vertical"] #end,body[data-demo="vertical"] #briefing,body[data-demo="vertical"] #landing,body[data-demo="vertical"] #stage>:not(#view3d){display:none!important}
+body[data-demo="vertical"] #app{grid-template-rows:1fr;height:100vh;height:100dvh}
+body[data-demo="vertical"] main{grid-template-columns:1fr}
+body[data-demo="vertical"] #stage{height:auto}
+body[data-demo="vertical"] #demosub{left:50%;bottom:7vw;width:calc(100vw - 8vw);max-width:none;box-sizing:border-box;font-size:3.9vw;line-height:1.3;padding:2.4vw 3vw;border-left-width:.8vw;border-radius:2vw}
+body[data-demo="vertical"] #demosub .dk{display:none}
+body[data-demo="vertical"] #demosub .dt{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+body[data-demo="vertical"] #demoboost{left:auto;right:4vw;top:auto;bottom:calc(7vw + 15vw);transform:none;font-size:3vw;padding:.5vw 1.8vw}
+#demovcard{position:fixed;z-index:56;left:4vw;right:4vw;top:4vw;background:var(--glass);color:var(--txt);border:1px solid var(--line);border-left:.8vw solid var(--acc);border-radius:2vw;box-shadow:0 2vw 5vw var(--shadow);padding:2.8vw 3.4vw;backdrop-filter:blur(6px)}
+#demovcard .vk{display:flex;align-items:center;gap:2vw;font:600 2.9vw var(--head);letter-spacing:.1em;text-transform:uppercase;color:var(--acc-text)}
+#demovcard .vk .si{transform:scale(1.9);margin:0 .6vw}
+#demovcard .vt{font:600 4.5vw/1.2 var(--head);margin-top:1.2vw}
+#demovcard .vh{font:500 3vw var(--mono);color:var(--mut);margin-top:.8vw}
+#demovcard .ve{margin-top:1.6vw;display:grid;gap:.5vw;font-size:3.2vw}
+#demovcard .ve b{font:600 2.7vw var(--head);letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}
+#demovcard .ve span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#demovcard .vp{position:relative;height:6vw;border-radius:1.2vw;background:var(--panel2);border:1px solid var(--line2);overflow:hidden;margin-top:2vw}
+#demovcard .vp i{position:absolute;inset:0 auto 0 0;background:var(--acc);opacity:.3}
+#demovcard .vp span{position:relative;display:block;padding:1.1vw 2vw;font:600 3vw var(--mono);font-variant-numeric:tabular-nums}
+#demovcard[data-kind="review"]{top:50%;transform:translateY(-62%)}
+#demovcard .vs{display:flex;align-items:baseline;gap:1.4vw;margin:1vw 0 1.6vw}
+#demovcard .vs b{font:700 15vw/1 var(--mono);color:var(--good-text)}
+#demovcard .vs span{font:600 5vw var(--mono);color:var(--mut)}
+#demovcard table td{font-size:3.1vw;padding:.7vw 0;border-bottom:1px dashed var(--line2)}
+#demovcard table td:last-child{text-align:right;font-family:var(--mono)}
+body[data-demo="vertical"] #democard .cc{padding:0 6vw}
+body[data-demo="vertical"] #democard .cc svg{width:18vw;height:18vw}
+body[data-demo="vertical"] #democard h1{font-size:12vw;margin:3vw 0 2vw}
+body[data-demo="vertical"] #democard p{font-size:4.2vw;line-height:1.3}
+body[data-demo="vertical"] #democard p.cta{margin-top:11vw;color:var(--txt);font-weight:600}
+body[data-demo="vertical"] #democard p.url.big{display:inline-block;font-size:4.4vw;padding:2.2vw 3.2vw;border:.4vw solid var(--acc);border-radius:2vw;margin:1.6vw 0 3vw}
+body[data-demo="vertical"] #democard p.small{font-size:3.3vw}
 /* briefing (antes del turno) y ayuda */
 #briefing{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(780px,calc(100% - 32px));max-height:calc(100% - 32px);z-index:20;--px:0px;--py:14px}
 .helpwrap{position:relative}
@@ -464,6 +499,7 @@ body[data-mode2=ronda] #clockwrap .seg,body[data-mode2=ronda] #shiftbar{display:
 <div id="demoask" role="dialog" aria-modal="false" hidden></div>
 <div id="demoboost" aria-hidden="true" hidden></div>
 <div id="democard" hidden></div>
+<div id="demovcard" aria-live="polite" hidden></div>
 <div id="toasts" aria-live="polite"></div>
 
 <div class="overlay" id="modal" hidden><div class="card" id="modalbox" role="dialog" aria-modal="true"></div></div>

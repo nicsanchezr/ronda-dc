@@ -137,3 +137,56 @@ test('todas las tomas de la demo ven su objetivo sin obstáculos (raycasting)', 
   expect(shots.length).toBeGreaterThan(8);
   expect(shots.filter((s) => !s.clear)).toEqual([]);
 });
+
+test('formato vertical 4:5: sin cabecera ni panel, tarjetas grandes y subtítulos cortos; turno perfecto', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.setViewportSize({ width: 540, height: 675 });
+  await page.goto(`${APP}?test&rapido#demo/grabar-vertical`);
+  await expect(page.locator('body')).toHaveAttribute('data-demo', 'vertical');
+  await expect(page.locator('#democtl')).toBeHidden();
+  // llega la alerta: tarjeta grande sobre la escena, sin la cabecera ni el panel lateral
+  await expect.poll(async () => (await demoState(page)).vcard, { timeout: 60_000, intervals: [100] }).toBe('alert');
+  await expect(page.locator('#demovcard')).toBeVisible();
+  await expect(page.locator('header')).toBeHidden();
+  await expect(page.locator('main > aside')).toBeHidden();
+  // subtítulos cortos del formato vertical (que quepan en dos líneas lo comprueba otra prueba)
+  await expect.poll(async () => (await demoState(page)).caption || '', { timeout: 30_000, intervals: [50] }).toMatch(/^demo\.v\./);
+  await expect.poll(async () => (await demoState(page)).finished, { timeout: 150_000, intervals: [1000] }).toBe(true);
+  // pasaron las cuatro tarjetas: alerta, ticket, acción en sala y corrección
+  expect((await demoState(page)).vseen.sort()).toEqual(['alert', 'field', 'review', 'ticket']);
+  const s = await state(page);
+  expect(s.tickets.every((x) => x.closed && x.total === 100)).toBe(true);
+  const d = await demoState(page);
+  expect(d.shots.filter((x) => !x.clear)).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test('todas las tomas del formato vertical ven su objetivo sin obstáculos (raycasting)', async ({ page }) => {
+  await page.goto(`${APP}?test#demo/grabar-vertical`);
+  await expect(page.locator('body')).toHaveAttribute('data-demo', 'vertical');
+  const shots = await page.evaluate(() => window.__ronda.demoCheckShots(true));
+  expect(shots.length).toBeGreaterThan(8);
+  expect(shots.filter((s) => !s.clear)).toEqual([]);
+});
+
+test('todos los subtítulos del formato vertical caben en dos líneas a 1080 px (ES y EN)', async ({ page }) => {
+  await page.setViewportSize({ width: 1080, height: 1350 });
+  for (const lang of ['es', 'en']) {
+    await page.addInitScript((l) => localStorage.setItem('ronda-dc-idioma', l), lang);
+    await page.goto(`${APP}?test#demo/grabar-vertical`);
+    await expect(page.locator('body')).toHaveAttribute('data-demo', 'vertical');
+    const over = await page.evaluate(async () => {
+      const box = document.querySelector('#demosub'), out = [];
+      const texts = window.__ronda.demoVerticalCaptions();
+      for (const [k, txt] of texts) {
+        box.hidden = false; box.innerHTML = `<span class="dk"></span><span class="dt">${txt}</span>`;
+        const el = box.querySelector('.dt');
+        el.style.webkitLineClamp = 'unset'; el.style.display = 'block';
+        const n = Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight));
+        if (n > 2) out.push(k);
+      }
+      return out;
+    });
+    expect(over, `subtítulos de más de dos líneas (${lang})`).toEqual([]);
+  }
+});

@@ -508,7 +508,33 @@ export default {
       close: 'Closure: true positive, P2, escalated to HVAC to repair the drain.',
     },
     ctl: { fs: 'Full screen', fsExit: 'Exit full screen', label: 'Demo controls', pause: 'Pause the demo', play: 'Resume the demo', next: 'Next step', speed: 'Speed', exit: 'Exit the demo', dec: '.' },
-    card: { play: 'Try it at', code: 'Open source' },
+    card: { play: 'Try it at', code: 'Open source', free: 'Free, in your browser, nothing to install' },
+    // vertical 4:5 format (#demo/grabar-vertical): captions of two lines at most and card labels
+    v: {
+      intro: 'Short shift, Normal level: an L1 operator handles four events.',
+      end: '{pts} out of {max} points, zero impact. Want to play it yourself?',
+      alert: 'Alert', ticket: 'Ticket {id}', evidence: 'Evidence ({n})', field: 'Floor action', min: '{n} of {m} min', review: 'Score',
+      E1: {
+        open: 'Access alert: an outside vendor just entered the data hall.',
+        change: 'An approved change, CHG-1042, covers it: the visit is authorized.',
+        close: 'Benign, P4, no escalation: it is real, but expected.',
+      },
+      E3: {
+        open: 'R08 runs hot only at the top: 26.1 °C, close to the ASHRAE limit.',
+        detail: 'The rack close-up shows the U30–U34 gap: blanking panels missing.',
+        fix: 'Fix the cause with blanking panels instead of lowering the setpoint.',
+      },
+      E6: {
+        open: 'Critical: CRAC-2 tripped on high pressure. Row B is heating up.',
+        boost: 'CRAC-1 has headroom: raise it to 90% until HVAC arrives.',
+        close: 'P1 with immediate escalation: the operator contains, the tech repairs.',
+      },
+      E7: {
+        open: 'Leak sensor: liquid under the raised floor, next to CRAC-1.',
+        lift: 'Lift the floor tile to find the source without stepping in the water.',
+        contain: 'Condensate 40 cm from the power cabling: contain it with absorbent.',
+      },
+    },
     ask: { title: 'Demo paused', text: 'You touched the data hall. You can keep watching or take over the shift as it is.', resume: 'Keep watching', takeover: 'Play from here' },
     // closing notes for the perfect game (src/perfect-run.js): used by the tests and the Demo
     note: {

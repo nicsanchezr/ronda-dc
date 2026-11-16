@@ -7,7 +7,8 @@
     "contrast": "node tools/contrast.mjs",
     "capturas": "node build.mjs && node tools/capturas.mjs",
     "video": "node build.mjs && node tools/video.mjs",
-    "test": "node build.mjs && playwright test"
+    "test": "node build.mjs && playwright test",
+    "video:vertical": "node build.mjs && node tools/video.mjs --vertical"
   },
   "keywords": [],
   "author": "Nicolás Sánchez Rodríguez",

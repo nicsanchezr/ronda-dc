@@ -1083,7 +1083,7 @@ function route() {
   const h = location.hash.replace(/^#\/?/, '');
   const [r0, r1, r2] = h.split('/');
   if (r0 === 'demo') {
-    const mode = r1 === 'kiosco' ? 'kiosco' : r1 === 'grabar' ? 'grabar' : '';
+    const mode = r1 === 'kiosco' ? 'kiosco' : r1 === 'grabar' ? 'grabar' : r1 === 'grabar-vertical' ? 'vertical' : '';
     if (!(demo.active && demo.mode === mode)) demo.start(mode);
     return;
   }
@@ -1135,6 +1135,18 @@ const demo = createDemo({
   openRackView: (id) => openRackView(id),
   exitRack: () => scene.exitRack(),
   advance(min) { advance(min); tickUI(); },
+  /** Datos de un ticket para las tarjetas del formato vertical (alerta, ticket, acción en sala, corrección). */
+  vinfo(incId) {
+    const tk = S.tickets.find((x) => x.inc.id === incId); if (!tk) return null;
+    const a = tk.inc.alert, r = tk.result;
+    return {
+      id: tk.id, title: esc(tk.inc.title), text: esc(a.text), host: esc(a.host), sev: SEV[a.sev].label, at: clock(tk.openedAt),
+      icon: statusIcon(a.sev, { label: SEV[a.sev].label }),
+      evidence: tk.evidence.map((e) => esc(evText(e))),
+      act: S.act ? { verb: esc(S.act.fa.verb), n: Math.min(S.act.fa.min, Math.floor(S.world.t - S.act.start)), m: S.act.fa.min } : null,
+      score: r ? { total: r.total, parts: r.parts.map((p) => ({ dim: esc(p.dim), pts: p.pts, max: p.max })) } : null,
+    };
+  },
   finishAct() { if (S.act) skipToNext(); },
   resetClock() { lastTs = performance.now(); },
   takeover(mode) {
@@ -1156,7 +1168,11 @@ if (/[?&]test\b/.test(location.search)) {
     demo: () => demo.state(),
     demoSpeed: (v) => demo.setSpeed(v),
     demoResumeShot: () => demo.resumeShot(),
-    demoCheckShots: () => demo.checkShots(),
+    demoCheckShots: (vertical) => demo.checkShots(vertical),
+    probeShot: (shot) => scene.probeShot(shot),
+    demoVerticalCaptions: () => demo.verticalCaptions(),
+    /** Salta a una toma ya comprobada (herramientas: vista previa de encuadres). */
+    previewShot(shot, fov) { if (fov) scene.setFov(fov); const r = scene.resolveShot(shot); if (r) scene.flyShot(r, shot.kind, shot.id, 0); return r ? r.index : -1; },
     camPose: () => scene.camPose,
     running: () => S.running,
     state() {

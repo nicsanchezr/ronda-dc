@@ -7,7 +7,12 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). V
 ### Agregado
 - **Video automático de la demo** (`npm run video`, `tools/video.mjs`): captura cuadro por cuadro con Playwright y Edge, con el reloj falso de la página avanzando 1/30 s por cuadro (temporizadores, `requestAnimationFrame` y `performance.now`) y sin transiciones CSS, y une los cuadros con ffmpeg en MP4 H.264 1920 × 1080 a 30 fps. Dos versiones, `videos/ronda-dc-demo-es.mp4` y `videos/ronda-dc-demo-en.mp4` (unos 90 s): modo grabación, tarjeta de inicio y de fin, subtítulos clave a velocidad normal y tramos de espera a ×8 con un indicador discreto.
 
+- **Versión vertical de la demo para el feed del celular** (`#demo/grabar-vertical`, `npm run video:vertical`): formato 4:5, 1080 × 1350, `videos/ronda-dc-demo-es-4x5.mp4` y `-en-4x5.mp4` (unos 75 s) con el mismo sistema cuadro por cuadro. La escena ocupa toda la pantalla, sin cabecera ni panel; la alerta, el ticket con su evidencia, la acción en sala y la corrección con su puntaje aparecen como tarjetas grandes; subtítulos propios de máximo dos líneas en el tercio inferior (ES y EN); tarjetas de inicio y de cierre con la URL del sitio. Encuadres propios (`SHOT_TYPES_V`): campo de visión más amplio, tomas de tres cuartos desde el pasillo, vista de detalle más cerca y sin etiquetas flotantes, comprobados con raycasting; hoja de contactos en `docs/demo-tomas-vertical.png` (`node tools/capturas.mjs tomas-vertical`).
+- Pruebas del formato vertical: turno perfecto con las cuatro tarjetas, línea de visión libre en todas sus tomas y subtítulos de dos líneas como máximo en ambos idiomas.
+
 ### Cambiado
+- **Herramientas en macOS y Linux:** `tools/browser.mjs` elige el navegador (Edge en Windows, el Chromium de Playwright en macOS y Linux, o `RONDA_BROWSER`) y busca ffmpeg en el PATH, Homebrew o winget. Lo usan `npm run video` y `npm run capturas`.
+- Los videos salen en `yuv420p` de rango limitado (antes `yuvj420p`, heredado de los JPEG), el formato H.264 estándar que esperan LinkedIn y los reproductores.
 - Los vuelos de cámara de la demo siguen una curva que sube por sobre los racks y baja al punto final: en línea recta podían atravesar el techo de la contención.
 
 ## [0.5.1] · 2026-11-16

@@ -3,8 +3,11 @@
 // detalle del rack, formulario de cierre y corrección. Subtítulos en el idioma activo (demo.* del
 // diccionario) explican qué hace y por qué.
 // Variantes: '' (#demo, con controles), 'kiosco' (#demo/kiosco: sin controles, en bucle, vuelve al
-// inicio tras 60 s sin interacción) y 'grabar' (#demo/grabar: sin cursor ni controles, subtítulos grandes).
-// Con ?test&video (tools/video.mjs): tarjetas de inicio y fin, menos subtítulos y tramos de espera a ×8.
+// inicio tras 60 s sin interacción), 'grabar' (#demo/grabar: sin cursor ni controles, subtítulos grandes)
+// y 'vertical' (#demo/grabar-vertical: formato 4:5 para el feed del celular, sin cabecera ni panel; los
+// momentos clave del panel aparecen como tarjetas grandes sobre la escena y el guion es más corto).
+// Con ?test&video (tools/video.mjs) o en 'vertical': tarjetas de inicio y fin, menos subtítulos y tramos
+// de espera a ×8.
 import { PERFECT } from './perfect-run.js';
 import { t } from './i18n/index.js';
 import { gl } from './glossary.js';
@@ -31,6 +34,20 @@ export const SHOT_TYPES = {
   leak: { look: [-0.3, 0, 0], cands: [[2.6, 1.3, 0.1], [-2.6, 1.3, 0.1], [2.0, 2.2, 0.3], [0.5, 2.6, 1.5]] },
 };
 /**
+ * Tomas del formato vertical (4:5). Su campo horizontal es la mitad del de 16:9 y el pasillo frío no deja
+ * alejarse, así que la cámara usa un campo vertical más amplio (V_FOV) y tomas de tres cuartos desde el
+ * pasillo, centradas en la parte alta del rack (sensor superior, paneles), que queda entre la tarjeta y los
+ * subtítulos. La vista de detalle del rack también se acerca (V_DETAIL) y las etiquetas flotantes se ocultan
+ * (la tarjeta ya dice qué equipo es). Misma comprobación con raycasting.
+ */
+const V_FOV = 54, V_DETAIL = 2.7; // campo vertical (°) y distancia de la vista de detalle del rack (m)
+export const SHOT_TYPES_V = {
+  rack: { look: [0, 0.45, 0.5], cands: [[1.25, 0.4, 1.65], [-1.25, 0.4, 1.65], [1.6, 0.45, 1.6], [-1.6, 0.45, 1.6], [0.3, 1.9, 2.4], [-0.3, 1.9, 2.4]] },
+  // CRAC: desde el costado libre de la sala (el frente da a los racks)
+  crac: { look: [0, 0.1, 0.45], cands: [[3.0, 0.8, 1.6], [-3.0, 0.8, 1.6], [2.4, 0.7, 1.7], [-2.4, 0.7, 1.7], [1.0, 1.9, 2.3]] },
+  leak: { look: [-0.3, 0, 0], cands: [[2.1, 1.3, 0.1], [-2.1, 1.3, 0.1], [1.7, 1.9, 0.3], [0.5, 2.3, 1.3]] },
+};
+/**
  * Toma de cada paso de la demo que mueve la cámara: '<evento>:<índice del paso en PERFECT>'.
  * rack: true = la toma es la vista de detalle del rack (el propio paso entra a ella).
  */
@@ -49,10 +66,12 @@ export const STEP_SHOTS = {
   'E7:1': { kind: 'leak', id: 'LEAK-Z3' }, // levanta la baldosa
   'E7:2': { kind: 'leak', id: 'LEAK-Z3' }, // revisa el agua y la canalización
 };
-const shotOf = (s) => ({ kind: s.kind, id: s.id, ...SHOT_TYPES[s.kind] });
+const shotOf = (s, vertical) => ({ kind: s.kind, id: s.id, ...(vertical ? SHOT_TYPES_V : SHOT_TYPES)[s.kind] });
 
 // Video: subtítulos que se mantienen (el resto de los pasos pasa a ×8)
 const VIDEO_SAY = new Set(['E1.open', 'E1.change', 'E1.close', 'E3.open', 'E3.detail', 'E3.fix', 'E3.close', 'E6.open', 'E6.alarm', 'E6.boost', 'E6.close', 'E7.open', 'E7.lift', 'E7.contain', 'E7.close']);
+// Vertical: menos subtítulos, más cortos (demo.v.*, máximo dos líneas); el resto lo cuentan las tarjetas
+const VERTICAL_SAY = new Set(['E1.open', 'E1.change', 'E1.close', 'E3.open', 'E3.detail', 'E3.fix', 'E6.open', 'E6.boost', 'E6.close', 'E7.open', 'E7.lift', 'E7.contain']);
 
 /**
  * api (desde main.js): S() estado · boot(level, duration) · enterRoom(done) · showLanding() · start()
@@ -61,8 +80,10 @@ const VIDEO_SAY = new Set(['E1.open', 'E1.change', 'E1.close', 'E3.open', 'E3.de
  */
 export function createDemo(api) {
   const $ = (s) => document.querySelector(s);
-  const D = { active: false, mode: '', paused: false, skip: false, speed: 1, boost: 1, handed: false, finished: false, caption: null, askOpen: false, lastInput: Date.now(), runId: 0, scripts: 0, pending: 0, shot: null, waitingShot: null, shots: [], idleTimer: null, fsExitAt: 0 };
+  const D = { active: false, mode: '', paused: false, skip: false, speed: 1, boost: 1, handed: false, finished: false, caption: null, askOpen: false, lastInput: Date.now(), runId: 0, scripts: 0, pending: 0, shot: null, waitingShot: null, shots: [], idleTimer: null, fsExitAt: 0, vseen: new Set() };
   const F = api.fast ? 30 : 1; // multiplicador de pruebas
+  const VERT = () => D.mode === 'vertical';
+  const compact = () => api.video || VERT(); // guion corto: tarjetas de inicio y fin, menos subtítulos, esperas a ×8
 
   // ---------- tiempo ------------------------------------------------------------------------------
   // Toda espera pasa por aquí: se cancela al salir (runId cambia) y cuenta en D.pending.
@@ -94,7 +115,7 @@ export function createDemo(api) {
   /** Ejecuta fn a ×8 (video), con el indicador en pantalla. */
   let boostDepth = 0;
   async function boosted(fn) {
-    if (!api.video) return fn();
+    if (!compact()) return fn();
     boostDepth++; setBoost(BOOST);
     try { return await fn(); } finally { if (--boostDepth === 0) setBoost(1); }
   }
@@ -105,6 +126,7 @@ export function createDemo(api) {
   /** Tiempo de lectura de un subtítulo (a 1×). */
   const readMs = (text) => {
     const words = text.split(/\s+/).length;
+    if (VERT()) return Math.min(4200, Math.max(2600, 1300 + words * 150));
     return api.video ? Math.min(5200, Math.max(2800, 1600 + words * 140)) : Math.min(9500, Math.max(3600, 2400 + words * 230));
   };
   const camMs = () => (api.fast ? 120 : Math.round(1700 / D.speed));
@@ -125,9 +147,67 @@ export function createDemo(api) {
     const logo = document.querySelector('.lbar .logo svg');
     c.innerHTML = kind === 'start'
       ? `<div class="cc">${logo ? logo.outerHTML : ''}<h1>Ronda DC</h1><p>${t('app.tagline')}</p></div>`
-      : `<div class="cc">${logo ? logo.outerHTML : ''}<h1>Ronda DC</h1><p>${t('demo.card.play')}</p><p class="url">nicsanchezr.github.io/ronda-dc</p><p>${t('demo.card.code')}</p><p class="url">github.com/nicsanchezr/ronda-dc</p></div>`;
+      : VERT()
+        ? `<div class="cc">${logo ? logo.outerHTML : ''}<h1>Ronda DC</h1><p>${t('app.tagline')}</p><p class="cta">${t('demo.card.play')}</p><p class="url big">nicsanchezr.github.io/ronda-dc</p><p class="small">${t('demo.card.free')}</p></div>`
+        : `<div class="cc">${logo ? logo.outerHTML : ''}<h1>Ronda DC</h1><p>${t('demo.card.play')}</p><p class="url">nicsanchezr.github.io/ronda-dc</p><p>${t('demo.card.code')}</p><p class="url">github.com/nicsanchezr/ronda-dc</p></div>`;
     c.dataset.kind = kind; c.hidden = false;
   }
+  // ---------- tarjetas del formato vertical ----------------------------------------------------------
+  // Lo que en 16:9 se ve en el panel (alerta, ticket, acción en sala, corrección) aparece en el
+  // vertical como una tarjeta grande sobre la escena. Aparece y se va con un fundido por cuadros
+  // (requestAnimationFrame): en la grabación, las transiciones CSS están desactivadas.
+  function vcard(kind, incId) {
+    if (!VERT()) return;
+    const prev = D.v && D.v.kind;
+    D.v = kind ? { kind, incId } : null;
+    if (kind) D.vseen.add(kind);
+    const el = $('#demovcard'); if (!el) return;
+    if (!kind) { fade(el, false); return; }
+    vrefresh();
+    if (prev !== kind) fade(el, true);
+  }
+  function vrefresh() {
+    const el = $('#demovcard'); if (!el || !D.v) return;
+    const info = api.vinfo(D.v.incId); if (!info) return;
+    const { kind } = D.v;
+    let h = '';
+    if (kind === 'alert') {
+      h = `<div class="vk">${info.icon}<span>${t('demo.v.alert')} · ${info.at} · ${info.sev}</span></div><div class="vt">${info.text}</div><div class="vh">${info.host}</div>`;
+    } else if (kind === 'ticket') {
+      const ev = info.evidence.slice(-2);
+      h = `<div class="vk">${info.icon}<span>${t('demo.v.ticket', { id: info.id })} · ${info.at}</span></div><div class="vt">${info.title}</div>`
+        + `<div class="ve"><b>${t('demo.v.evidence', { n: info.evidence.length })}</b>${ev.map((e) => `<span>✓ ${e}</span>`).join('')}</div>`;
+    } else if (kind === 'field') {
+      const a = info.act || D.lastAct;
+      if (info.act) D.lastAct = info.act;
+      if (!a) return;
+      const pct = Math.min(100, (a.n / a.m) * 100);
+      h = `<div class="vk"><span>${t('demo.v.field')}</span></div><div class="vt">${a.verb}</div><div class="vp"><i style="width:${pct}%"></i><span>${t('demo.v.min', { n: a.n, m: a.m })}</span></div>`;
+    } else if (kind === 'review' && info.score) {
+      h = `<div class="vk"><span>${t('demo.v.review')} · ${info.id}</span></div><div class="vt">${info.title}</div><div class="vs"><b>${info.score.total}</b><span>/ 100</span></div>`
+        + `<table>${info.score.parts.map((p) => `<tr><td>${p.dim}</td><td>${p.pts}/${p.max}</td></tr>`).join('')}</table>`;
+    }
+    el.dataset.kind = kind;
+    if (el._h !== h) { el.innerHTML = h; el._h = h; }
+  }
+  let fadeId = 0;
+  function fade(el, show) {
+    const id = ++fadeId, t0 = performance.now(), MS = 260;
+    if (show) { el.hidden = false; el.style.opacity = '0'; }
+    const stepF = () => {
+      if (id !== fadeId) return;
+      const k = Math.min(1, (performance.now() - t0) / MS), e = show ? k : 1 - k;
+      el.style.opacity = String(e); el.style.translate = `0 ${Math.round((1 - e) * 18)}px`;
+      if (k < 1) requestAnimationFrame(stepF);
+      else if (!show) { el.hidden = true; el.innerHTML = ''; el._h = ''; }
+    };
+    requestAnimationFrame(stepF);
+  }
+  function vclear() {
+    D.v = null; D.lastAct = null; fadeId++;
+    const el = $('#demovcard'); if (el) { el.hidden = true; el.innerHTML = ''; el._h = ''; el.style.opacity = ''; el.style.translate = ''; }
+  }
+
   function renderControls() {
     const c = $('#democtl'); if (!c) return;
     const fs = !!document.fullscreenElement;
@@ -148,6 +228,7 @@ export function createDemo(api) {
     if (D.caption) caption(D.caption.key, D.caption.vars);
     renderControls(); if (D.askOpen) renderAsk();
     const c = $('#democard'); if (c && !c.hidden) card(c.dataset.kind);
+    vrefresh();
   }
 
   function setPaused(p) {
@@ -169,7 +250,7 @@ export function createDemo(api) {
   async function applyShot(key, s, ms) {
     D.shot = key;
     if (s.detail) return; // el propio paso entra a la vista de detalle
-    const res = api.scene.resolveShot(shotOf(s));
+    const res = api.scene.resolveShot(shotOf(s, VERT()));
     if (res) {
       api.scene.flyShot(res, s.kind, s.id, ms);
       api.select(s.kind, s.id);
@@ -237,14 +318,17 @@ export function createDemo(api) {
     } finally { D.pending--; }
   }
   async function waitAct() {
-    await boosted(async () => { while (api.S().act) { if (api.fast) api.finishAct(); await sleep(120); } });
+    vcard('field', D.v && D.v.incId);
+    await boosted(async () => { while (api.S().act) { if (api.fast) api.finishAct(); vrefresh(); await sleep(120); } });
+    vrefresh();
+    if (VERT()) { await sleep(500); vcard('ticket', D.v && D.v.incId); }
   }
 
   async function doStep(incId, st, i) {
     const sayKey = st.say ? `${incId}.${st.say}` : null;
-    const shown = sayKey && (!api.video || VIDEO_SAY.has(sayKey));
+    const shown = sayKey && (VERT() ? VERTICAL_SAY.has(sayKey) : !api.video || VIDEO_SAY.has(sayKey));
     const run = async () => {
-      const text = shown ? caption(`demo.${sayKey}`) : '';
+      const text = shown ? caption(`demo.${VERT() ? 'v.' : ''}${sayKey}`) : '';
       const t0 = Date.now(), r0 = rate();
       const S = api.S();
       const shot = STEP_SHOTS[`${incId}:${i}`];
@@ -276,12 +360,14 @@ export function createDemo(api) {
         await closeStep(incId, st.close);
       }
       if (shot) await shotPause(`${incId}:${i}`);
+      if (st.attach) vrefresh();
       const spent = (Date.now() - t0) * r0;
       if (text) { if (!boostDepth) setBoost(1); await sleep(Math.max(0, readMs(text) - spent)); }
       else await sleep(500);
     };
     // En el video, los pasos sin subtítulo pasan a ×8
-    if (api.video && !shown) await boosted(run); else await run();
+    if (compact() && !shown) await boosted(run); else await run();
+    if (st.open) vcard('ticket', incId); // la alerta ya se vio: queda el ticket con su evidencia
   }
 
   async function closeStep(incId, c) {
@@ -300,18 +386,20 @@ export function createDemo(api) {
       await until(() => $('#modalbox .score b'));
     });
     const pts = Number($('#modalbox .score b').textContent);
-    if (api.video) await sleep(1800); // el video muestra la corrección sin subtítulo
+    if (VERT()) { vcard('review', incId); await sleep(2600); vcard(null); } // tarjeta con el puntaje
+    else if (api.video) await sleep(1800); // el video muestra la corrección sin subtítulo
     else { const txt = caption('demo.review', { pts }); await sleep(readMs(txt) + 1200); }
     await boosted(() => press('#modalbox .mf [data-act="close-modal"]', 600));
   }
 
   // ---------- guion -------------------------------------------------------------------------------------
   async function script(id) {
-    D.finished = false; D.shots = []; renderControls();
+    D.finished = false; D.shots = []; D.vseen = new Set(); renderControls(); vclear();
     api.scene.setFrameOffset(0);
-    if (api.video) { // tarjeta de inicio sobre la portada
+    api.scene.setFov(VERT() ? V_FOV : 0, VERT() ? V_DETAIL : 0); api.scene.setFloating(!VERT());
+    if (compact()) { // tarjeta de inicio sobre la portada
       api.showLanding(); caption(null); card('start');
-      await sleep(2800);
+      await sleep(VERT() ? 2400 : 2800);
       card(null);
     } else if (D.mode === 'grabar' || D.mode === 'kiosco') { // portada como presentación
       api.showLanding();
@@ -321,23 +409,24 @@ export function createDemo(api) {
     await new Promise((r) => api.enterRoom(r));
     check(id); // si se salió durante el vuelo de entrada, no se empieza el turno
     api.start();
-    api.scene.setFrameOffset(FRAME_PX);
-    const intro = caption('demo.intro');
+    api.scene.setFrameOffset(VERT() ? 0 : FRAME_PX); // en vertical no hay inspector que esquivar
+    const intro = caption(VERT() ? 'demo.v.intro' : 'demo.intro');
     await sleep(readMs(intro));
     const S = api.S();
     const order = Object.keys(S.world.sched).sort((a, b) => S.world.sched[a] - S.world.sched[b]);
     for (const incId of order) {
-      caption(api.video ? null : 'demo.wait');
+      caption(compact() ? null : 'demo.wait');
       await boosted(() => runClockTo(S.world.sched[incId] + 0.02));
-      await sleep(api.video ? 300 : 900);
+      vcard('alert', incId); // llega la alerta
+      await sleep(compact() ? 300 : 900);
       for (let i = 0; i < PERFECT[incId].length; i++) await doStep(incId, PERFECT[incId][i], i);
     }
-    caption(api.video ? null : 'demo.wait');
+    caption(compact() ? null : 'demo.wait');
     await boosted(() => runClockTo(S.shiftLen + 0.02));
     const total = S.tickets.reduce((s, x) => s + (x.result ? x.result.total : 0), 0);
-    const endTxt = caption('demo.end', { pts: total, max: order.length * 100 });
+    const endTxt = caption(VERT() ? 'demo.v.end' : 'demo.end', { pts: total, max: order.length * 100 });
     D.finished = true; renderControls();
-    if (api.video) { await sleep(readMs(endTxt)); caption(null); card('end'); await sleep(3000); D.videoDone = true; }
+    if (compact()) { await sleep(readMs(endTxt)); caption(null); card('end'); await sleep(3000); D.videoDone = true; }
     if (D.mode === 'kiosco') { await sleep(LOOP_PAUSE_MS); restart(); }
   }
 
@@ -350,7 +439,7 @@ export function createDemo(api) {
   }
   function restart() {
     if (!D.active) return;
-    D.runId++; boostDepth = 0; closeAsk(); card(null); setBoost(1);
+    D.runId++; boostDepth = 0; closeAsk(); card(null); vclear(); setBoost(1);
     api.scene.cancel();
     api.boot('normal', 'corto');
     D.handed = false; document.body.dataset.demo = D.mode;
@@ -379,11 +468,11 @@ export function createDemo(api) {
     boostDepth = 0;
     D.paused = false; D.skip = false; D.waitingShot = null;
     clearInterval(D.idleTimer); D.idleTimer = null;
-    closeAsk(); caption(null); card(null); setBoost(1);
+    closeAsk(); caption(null); card(null); vclear(); setBoost(1);
     $('#democtl').hidden = true; $('#democtl').innerHTML = '';
     document.querySelectorAll('.demo-press').forEach((el) => el.classList.remove('demo-press'));
     api.scene.cancel();
-    api.scene.setFrameOffset(0);
+    api.scene.setFrameOffset(0); api.scene.setFov(0); api.scene.setFloating(true);
   }
   function stop() {
     if (!D.active) return;
@@ -395,10 +484,10 @@ export function createDemo(api) {
   function takeover() {
     const kiosk = D.mode === 'kiosco';
     D.handed = true;
-    D.runId++; closeAsk(); caption(null); card(null); setBoost(1);
+    D.runId++; closeAsk(); caption(null); card(null); vclear(); setBoost(1);
     $('#democtl').hidden = true;
     document.querySelectorAll('.demo-press').forEach((el) => el.classList.remove('demo-press'));
-    api.scene.setFrameOffset(0); api.scene.restoreOrbit();
+    api.scene.setFrameOffset(0); api.scene.setFov(0); api.scene.setFloating(true); api.scene.restoreOrbit();
     if (!kiosk) { D.active = false; delete document.body.dataset.demo; }
     else document.body.dataset.demo = 'kiosco-libre';
     api.takeover(D.mode);
@@ -427,7 +516,7 @@ export function createDemo(api) {
     if (!D.active || !e.isTrusted) return;
     D.lastInput = Date.now();
     if (D.mode === 'kiosco') requestFs();
-    if (D.handed || D.mode === 'grabar') return;
+    if (D.handed || D.mode === 'grabar' || D.mode === 'vertical') return;
     if (e.target.closest && e.target.closest(EXEMPT)) return;
     e.stopPropagation(); e.preventDefault();
     swallow = e.type === 'pointerdown';
@@ -467,9 +556,11 @@ export function createDemo(api) {
     setSpeed(v) { D.speed = v; renderControls(); },
     resumeShot() { D.waitingShot = null; },
     /** Comprueba todas las tomas con la sala tal como está (para pruebas). */
-    checkShots: () => Object.entries(STEP_SHOTS).filter(([, s]) => !s.detail).map(([key, s]) => { const r = api.scene.resolveShot(shotOf(s)); return { key, clear: !!r, cand: r ? r.index : -1 }; }),
+    /** Subtítulos del formato vertical en el idioma activo (para la prueba de las dos líneas). */
+    verticalCaptions: () => ['intro', 'end', ...VERTICAL_SAY].map((k) => 'demo.v.' + k).map((k) => [k, gl(t(k, { pts: 400, max: 400 }))]),
+    checkShots: (vertical) => Object.entries(STEP_SHOTS).filter(([, s]) => !s.detail).map(([key, s]) => { const r = api.scene.resolveShot(shotOf(s, vertical)); return { key, clear: !!r, cand: r ? r.index : -1 }; }),
     get active() { return D.active; },
     get mode() { return D.mode; },
-    state: () => ({ active: D.active, mode: D.mode, paused: D.paused, finished: D.finished, handed: D.handed, askOpen: D.askOpen, caption: D.caption && D.caption.key, running: D.scripts > 0, pending: D.pending, shot: D.shot, waitingShot: D.waitingShot, shots: D.shots.slice(), boost: D.boost, videoDone: !!D.videoDone, idle: !!D.idleTimer }),
+    state: () => ({ active: D.active, mode: D.mode, paused: D.paused, finished: D.finished, handed: D.handed, askOpen: D.askOpen, caption: D.caption && D.caption.key, running: D.scripts > 0, pending: D.pending, shot: D.shot, waitingShot: D.waitingShot, shots: D.shots.slice(), boost: D.boost, vcard: D.v ? D.v.kind : null, vseen: [...D.vseen], videoDone: !!D.videoDone, idle: !!D.idleTimer }),
   };
 }

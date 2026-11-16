@@ -508,7 +508,33 @@ export default {
       close: 'Cierre: verdadero positivo, P2, escalado a Climatización para que repare el drenaje.',
     },
     ctl: { fs: 'Pantalla completa', fsExit: 'Salir de pantalla completa', label: 'Controles de la demo', pause: 'Pausar la demo', play: 'Seguir la demo', next: 'Siguiente paso', speed: 'Velocidad', exit: 'Salir de la demo', dec: ',' },
-    card: { play: 'Pruébalo en', code: 'Código abierto' },
+    card: { play: 'Pruébalo en', code: 'Código abierto', free: 'Gratis, en el navegador y sin instalar nada' },
+    // formato vertical 4:5 (#demo/grabar-vertical): subtítulos de máximo dos líneas y rótulos de las tarjetas
+    v: {
+      intro: 'Turno corto, nivel Normal: un operador N1 atiende cuatro eventos.',
+      end: '{pts} de {max} puntos y sin impactos. ¿Te animas a jugarlo tú?',
+      alert: 'Alerta', ticket: 'Ticket {id}', evidence: 'Evidencia ({n})', field: 'Acción en sala', min: '{n} de {m} min', review: 'Corrección',
+      E1: {
+        open: 'Alerta de acceso: entró un proveedor externo a la sala.',
+        change: 'Hay un cambio aprobado, CHG-1042: el ingreso está autorizado.',
+        close: 'Benigno, P4 y sin escalar: es real, pero esperado.',
+      },
+      E3: {
+        open: 'R08 se calienta solo arriba: 26,1 °C, cerca del límite ASHRAE.',
+        detail: 'En el detalle del rack, el hueco U30–U34: faltan paneles ciegos.',
+        fix: 'Se corrige la causa con paneles ciegos, sin bajar el setpoint.',
+      },
+      E6: {
+        open: 'Crítica: CRAC-2 se detuvo por alta presión. La fila B se calienta.',
+        boost: 'CRAC-1 tiene margen: sube al 90 % mientras llega Climatización.',
+        close: 'P1 y escalamiento inmediato: el operador contiene, el técnico repara.',
+      },
+      E7: {
+        open: 'Sensor de fugas: hay líquido bajo el piso técnico, junto a CRAC-1.',
+        lift: 'Levanta la baldosa para encontrar el origen, sin pisar el agua.',
+        contain: 'Condensado a 40 cm de la canalización: se contiene con absorbente.',
+      },
+    },
     ask: { title: 'Demo en pausa', text: 'Tocaste la sala. Puedes seguir mirando o tomar el control del turno tal como está.', resume: 'Seguir viendo', takeover: 'Jugar yo desde aquí' },
     // notas de cierre de la partida perfecta (src/perfect-run.js): las usan las pruebas y la Demo
     note: {
