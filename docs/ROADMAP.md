@@ -1,6 +1,6 @@
 # Roadmap · Ronda DC
 
-> Estado al 15-11-2026 (v0.4.0): hechos los puntos 0, 1, 2 y 3, y en parte el 5; además, acciones en sala, niveles con tutor, glosario, turno corto y pruebas automáticas. Siguen el 4 (Demo), el selector ES/EN y los nuevos puntos 6 (escenarios propios cargables), 7 (desafíos) y 8 (editor de escenarios). Historial en [`CHANGELOG.md`](../CHANGELOG.md); contexto del código en [`.claude/CLAUDE.md`](../.claude/CLAUDE.md).
+> Estado al 15-11-2026 (v0.5.0): hechos los puntos 0 a 5; además, acciones en sala, niveles con tutor, glosario, turno corto, versión en inglés y pruebas automáticas. Siguen los puntos 6 (escenarios propios cargables), 7 (desafíos) y 8 (editor de escenarios). Historial en [`CHANGELOG.md`](../CHANGELOG.md); contexto del código en [`.claude/CLAUDE.md`](../.claude/CLAUDE.md).
 
 ## 0. Cambio de nombre a Ronda DC ✅
 - Reemplazar "Turno de Sala" por "Ronda DC" en el título, la cabecera, la portada, el informe Markdown, la clave de localStorage (`ronda-dc-ultimo`, migrando la anterior si existe), package.json y README.
@@ -28,12 +28,13 @@ Mejoras pedidas por Nicolás (15-11-2026), en orden sugerido.
 - Cada ítem se marca como OK, observación o falla, con evidencia tomada de la inspección 3D. Algunos ítems tienen hallazgos plantados.
 - Se puede usar sola, como actividad corta de clase, o al inicio del turno, con puntaje propio y exportación.
 
-## 4. Modo demo (funcionamiento automático)
+## 4. Modo demo (funcionamiento automático) ✅
+- Hecho en v0.5: `#demo` juega el turno corto en Normal con la partida perfecta (la misma de las pruebas), con cámara, vista de detalle del rack, acciones en sala, formulario de cierre y corrección, y subtítulos en el idioma activo. Controles discretos, pausa al tocar con «Seguir viendo» / «Jugar yo desde aquí», `#demo/kiosco` (bucle, reinicio tras 60 s sin interacción) y `#demo/grabar` (sin cursor ni controles, subtítulos grandes).
 - Reproducción automática del turno: la cámara recorre la sala, se disparan los eventos, un "operador fantasma" inspecciona, adjunta evidencia y cierra tickets con las respuestas correctas, con subtítulos que explican cada paso.
 - Pensado para mostrar el simulador en ferias, clases o LinkedIn (modo kiosco con reinicio en bucle, se detiene al tocar).
 
-## 5. Landing más cuidada (en parte ✅)
-- Hecho: portada con escena 3D de fondo, tres tarjetas de modo, rutas por hash, briefing y ayuda «?». Pendiente: selector de idioma ES/EN.
+## 5. Landing más cuidada ✅
+- Hecho: portada con escena 3D de fondo, tres tarjetas de modo, rutas por hash, briefing y ayuda «?». En v0.5, selector ES | EN (portada y cabecera) con la interfaz y el escenario completos en inglés, cambio de idioma en vivo y formatos por idioma.
 - Portada con presentación (qué es, para quién, qué aprende), vista 3D animada de fondo o captura en vivo, botones "Comenzar turno", "Ver demo" y "Checklist de ronda", competencias que se trabajan, marco normativo, créditos y licencia.
 - Selector de idioma ES/EN (el diccionario del punto 0 lo permite); traducir primero la interfaz y luego los escenarios.
 
@@ -56,5 +57,6 @@ Mejoras pedidas por Nicolás (15-11-2026), en orden sugerido.
 
 ## Después
 - Más turnos (semana completa), personalización por asignatura (AAY1107 Monitoreo de Redes, Comunicaciones Corporativas, etc.).
-- ~~Repositorio público en GitHub con GitHub Pages y licencia~~ (v0.2) y ~~CI con Playwright~~ (v0.3). Pendiente: regenerar automáticamente las capturas de `docs/capturas/`.
+- ~~Repositorio público en GitHub con GitHub Pages y licencia~~ (v0.2), ~~CI con Playwright~~ (v0.3) y ~~regenerar las capturas de `docs/capturas/`~~ (v0.5, `npm run capturas`).
+- Escenarios propios (punto 6) en ambos idiomas: el formato debería admitir textos por idioma, como `src/i18n/escenario.<idioma>.js`.
 - Hecho en v0.3 (fuera del orden original): acciones en sala, niveles Guiado/Normal/Experto con tutor, pistas y glosario.

@@ -2,6 +2,27 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). Versiones según [SemVer](https://semver.org/lang/es/).
 
+## [0.5.0] · 2026-11-15
+
+### Agregado
+- **Versión en inglés.** Selector **ES | EN** en la portada y en la cabecera; el idioma inicial sale del navegador (`navigator.language`) y la elección se guarda en `localStorage`. Todo está traducido: interfaz, eventos, observaciones de la sala, tutor, pistas, preguntas de reflexión, runbooks, glosario, checklist, calendario, accesos, mensajes de corrección e informe Markdown. En inglés se usa la terminología estándar del rubro (CRAC, PDU, blanking panel, cold aisle containment, remote hands, change request, shift handover, true/false positive); los nombres de personas y empresas ficticias se mantienen.
+- **Cambio de idioma en vivo:** cambiar a mitad de una partida no reinicia nada. Los tickets abiertos, la bitácora, la evidencia adjunta y la corrección cambian de idioma al momento (lo escrito por el estudiante queda tal cual).
+- **Formatos según el idioma:** decimales (22,4 °C / 22.4 °C), porcentajes (84 % / 84%) y fechas (15 de noviembre de 2026 / November 15, 2026).
+- **Modo Demo** (`#demo`): un operador automático juega el turno corto en Normal con la partida perfecta. Recorre la sala con la cámara, inspecciona, entra a la vista de detalle del rack, ejecuta acciones en sala, adjunta evidencia, completa el formulario de cierre y muestra cada corrección, con subtítulos en el idioma activo que explican qué hace y por qué (con los términos del glosario). Dura unos 4–5 minutos. Controles discretos (pausa, siguiente paso, velocidad 1× / 1,5× / 2× y salir; también con Espacio, → y Esc). Al tocar la sala o el panel, la demo se pausa y ofrece «Seguir viendo» o «Jugar yo desde aquí» (la partida sigue tal como está).
+- **Modo kiosco** (`#demo/kiosco`): pantalla completa, sin controles, en bucle; vuelve al inicio tras 60 s sin interacción. Pensado para ferias.
+- **Modo grabación** (`#demo/grabar`): sin cursor ni controles y con subtítulos grandes, para grabar un video de 1920 × 1080.
+- `src/perfect-run.js`: la partida perfecta como datos. La ejecutan las pruebas y la Demo, así que la Demo no puede quedar desalineada con lo que se corrige.
+- `tools/capturas.mjs` (`npm run capturas`): regenera las capturas de `docs/capturas/`, incluido el GIF de la demo.
+- Pruebas: diccionarios sin claves faltantes (también listas y `{variables}`), idioma inicial, cambio de idioma a mitad de turno, partida perfecta en inglés, turno corto perfecto, demo completa en español y en inglés (4 tickets, 400 de 400), pausa al tocar la sala y modos kiosco y grabación.
+
+### Cambiado
+- Los textos de `scenario.js` y `sim.js` pasan al diccionario (`src/i18n/escenario.<idioma>.js` y grupos `sim`/`insp`); la bitácora, los impactos y las alertas del sistema se guardan como mensajes que se traducen al mostrarlos.
+- La tarjeta Demo de la portada pasa a «Disponible», con el botón «Ver demo».
+- README: la sección en inglés es una versión completa.
+
+### Corregido
+- En el turno corto, la recirculación de R08 no aparecía como observación hasta las 08:40, después de la alerta de las 08:35: E3 no podía obtener la evidencia completa. Ahora sigue el calendario del turno.
+
 ## [0.4.0] · 2026-11-15
 
 ### Agregado

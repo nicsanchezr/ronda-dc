@@ -8,13 +8,14 @@
 
 <p align="center">
   <b>Simulador 3D de un turno de operación en una sala de datacenter.</b><br>
-  Checklist de ronda, alertas, tickets, escalamiento y corrección inmediata. Un solo archivo HTML, sin servidor.
+  Checklist de ronda, alertas, tickets, escalamiento, corrección inmediata y una demo automática. En español e inglés. Un solo archivo HTML, sin servidor.
 </p>
 
 <p align="center">
   <a href="#qué-es">Qué es</a> ·
   <a href="#qué-se-aprende">Qué se aprende</a> ·
   <a href="#cómo-se-juega">Cómo se juega</a> ·
+  <a href="#demo">Demo</a> ·
   <a href="#marco-de-referencia">Marco de referencia</a> ·
   <a href="#cómo-compilar">Cómo compilar</a> ·
   <a href="#in-english">In English</a>
@@ -29,6 +30,10 @@
 **Ronda DC** pone al estudiante en el puesto de un **operador de sala N1** durante un turno (corto, de 08:00 a 10:30, o completo, hasta las 15:00) en *Cordillera Colo · Sala A*, un colocation ficticio en Santiago con 10 racks de tres clientes, dos CRAC, dos UPS, detección de fugas y control de acceso.
 
 Las alertas de monitoreo abren tickets. El estudiante recorre la sala en 3D, revisa cada rack U por U, junta evidencia y decide: qué es un problema real, qué prioridad tiene, qué hacer y a quién escalar. Al cerrar cada ticket recibe la corrección al momento, con lo esperado, el porqué y la norma que lo respalda. Si se demora o toma una acción crítica, la sala empeora.
+
+La interfaz, el escenario, el glosario y el informe exportado están en **español e inglés**. El idioma inicial sale del navegador y se puede cambiar en cualquier momento desde la portada o la cabecera (ES | EN) sin perder el turno en curso: los tickets abiertos, la bitácora y la corrección cambian de idioma al momento.
+
+![Versión en inglés: ticket TK-102 «Rising temperature in R08» y el inspector del rack con decimales con punto](docs/capturas/ingles.png)
 
 **Para quién:** estudiantes de técnico y de ingeniería en redes, infraestructura y soporte TI, y docentes que buscan una actividad práctica de operación de datacenter sin necesidad de una sala real. También sirve como repaso para quien empieza a trabajar en un NOC o en un colocation.
 
@@ -67,7 +72,7 @@ Antes del turno (o como actividad corta de clase), el estudiante recorre la sala
 
 | Vista de detalle del rack | Corrección de un ticket |
 |---|---|
-| ![Trasera del rack R06: las dos fuentes de k8s-n7 van a la PDU-B](docs/capturas/rack.png) | ![Corrección del ticket TK-101 con 95 de 100 puntos y la explicación](docs/capturas/correccion.png) |
+| ![Trasera del rack R06: las dos fuentes de k8s-n7 van a la PDU-B](docs/capturas/rack.png) | ![Corrección del ticket TK-101 con 85 de 100 puntos, lo que faltó y la explicación](docs/capturas/correccion.png) |
 
 <p align="center">
   <img src="docs/capturas/transicion.gif" alt="Transición continua: la cámara entra al rack R06, lo rodea hasta la trasera y vuelve a la sala" width="640"><br>
@@ -84,7 +89,30 @@ Cada modo se puede enlazar directamente: [`#turno/normal/corto`](https://nicsanc
 |---|---|---|
 | **Turno** | Disponible | Corto (08:00–10:30, 4 eventos, unos 12 min) o completo (08:00–15:00, 8 eventos), con acciones en sala, corrección por ticket e informe final. Tres niveles: **Guiado** (tutor paso a paso, tutorial de la interfaz, pistas y sin presión de tiempo), **Normal** (pistas limitadas que cuestan puntos) y **Experto** (sin pistas, el reloj no se detiene al cerrar y hay eventos que coinciden). |
 | **Checklist de ronda** | Disponible | Ronda de inicio de turno de 10 a 15 min: 10 ítems verificables en la sala (temperatura, CRAC, UPS, redundancia A/B, paneles ciegos, puertas, VESDA y extintores, limpieza, control de acceso, piso técnico) con cinco hallazgos plantados, puntaje propio e informe. Se juega sola o antes de un turno, en los tres niveles. |
-| **Demo** | Próximamente | Reproducción automática con un operador que inspecciona, adjunta evidencia y cierra los tickets, con subtítulos. Pensado para ferias y clases. |
+| **Demo** | Disponible | Un operador automático juega el turno corto en Normal: recorre la sala, inspecciona, entra a la vista de detalle del rack, actúa en sala, adjunta evidencia y cierra los tickets, con subtítulos que explican qué hace y por qué. Unos 4–5 minutos, con variantes para ferias (`#demo/kiosco`) y para grabar un video (`#demo/grabar`). |
+
+### Demo
+
+<p align="center">
+  <img src="docs/capturas/demo.gif" alt="Demo: el operador abre el ticket de R08, entra a la vista de detalle del rack, adjunta evidencia, instala los paneles ciegos y cierra el ticket con 100 puntos" width="640"><br>
+  <sub>Demo del evento de R08 (paneles ciegos faltantes), a 2×.</sub>
+</p>
+
+[`#demo`](https://nicsanchezr.github.io/ronda-dc/#demo) juega el turno corto en Normal con la misma partida perfecta que usan las pruebas automáticas (`src/perfect-run.js`): recorre la sala con la cámara, inspecciona, entra a la vista de detalle del rack, ejecuta acciones en sala, adjunta evidencia, completa el formulario de cierre y muestra cada corrección. Los subtítulos, en el idioma activo, explican qué hace el operador y por qué, con los términos del glosario marcados.
+
+- **Controles** (abajo, discretos): pausa, siguiente paso, velocidad (1×, 1,5×, 2×) y salir. Con el teclado: **Espacio** pausa, **→** pasa al siguiente paso y **Esc** sale.
+- **Al tocar la sala o el panel**, la demo se pausa y ofrece **«Seguir viendo»** o **«Jugar yo desde aquí»**: la partida sigue tal como está, ahora en manos del estudiante.
+- **Kiosco** ([`#demo/kiosco`](https://nicsanchezr.github.io/ronda-dc/#demo/kiosco)): sin controles, en bucle, y vuelve al inicio tras 60 s sin interacción. Pide pantalla completa al primer toque; para dejarlo fijo en una feria, abre el navegador en modo kiosco, por ejemplo `msedge --kiosk "https://nicsanchezr.github.io/ronda-dc/#demo/kiosco" --edge-kiosk-type=fullscreen` (o pulsa **F11**).
+- **Grabación** ([`#demo/grabar`](https://nicsanchezr.github.io/ronda-dc/#demo/grabar)): sin cursor ni controles y con subtítulos grandes, pensado para un video de 1920 × 1080 (por ejemplo, para LinkedIn). Parte con la portada unos segundos y luego entra a la sala.
+
+**Cómo grabar el video (1920 × 1080):**
+
+1. Usa una pantalla de 1920 × 1080 (o la resolución de Windows en 1920 × 1080) y abre `#demo/grabar` en Edge o Chrome. Pulsa **F11** para la pantalla completa y recarga la página (**F5**) para que la demo empiece desde la portada.
+2. Graba con una de estas opciones:
+   - **Herramienta Recortes de Windows 11:** abre Recortes, elige **Grabar**, selecciona toda la pantalla y pulsa **Iniciar**.
+   - **Xbox Game Bar:** **Win + Alt + R** inicia y detiene la grabación de la ventana activa (el video queda en *Vídeos › Capturas*).
+   - **OBS Studio:** fuente **Captura de pantalla** (o **Captura de ventana** del navegador), *Ajustes › Vídeo* con resolución base y de salida 1920 × 1080 a 30 o 60 fps, y formato MP4.
+3. La demo dura unos 4–5 minutos y termina en la pantalla de fin de turno; recorta el inicio y el final con el editor que prefieras. Para cambiar el idioma de los subtítulos, elige **ES** o **EN** antes de recargar.
 
 **Temas:** *Gris de sala* (por defecto, pensado para proyector) y *Alto rendimiento*, que sigue el criterio ISA-101 de pantallas de operación: todo en grises y color solo para lo anormal. Ambos en claro y oscuro (o según el sistema), con contraste WCAG AA verificado.
 
@@ -104,9 +132,9 @@ También se citan Uptime Institute Tiers (redundancia), IEEE 1188 (baterías) y 
 
 ## Stack y privacidad
 
-- **Un solo archivo HTML** (`dist/index.html`, unos 900 KB): JavaScript, CSS, tipografías y escena 3D incluidos.
+- **Un solo archivo HTML** (`dist/index.html`, alrededor de 1 MB): JavaScript, CSS, tipografías y escena 3D incluidos.
 - **Sin servidor y sin peticiones externas:** no carga nada de Internet, no tiene analítica ni cookies. Funciona sin conexión.
-- Lo único que se guarda es local, en el navegador (`localStorage`): el último puntaje, el nivel, la duración y el tema elegidos.
+- Lo único que se guarda es local, en el navegador (`localStorage`): el último puntaje y el nivel, la duración, el idioma y el tema elegidos.
 - [Three.js](https://threejs.org) 0.160 para la escena 3D y [esbuild](https://esbuild.github.io) para empaquetar.
 - Empresa, personas, clientes, equipos y modelos son **ficticios**.
 
@@ -119,9 +147,12 @@ npm install
 npm run build        # genera dist/index.html
 npm run contrast     # verifica el contraste WCAG AA de los temas
 npm test             # compila y corre las pruebas de Playwright (Edge en Windows, Chromium en CI)
+npm run capturas     # regenera las capturas de docs/capturas/ y el GIF de la demo (Edge en Windows)
 ```
 
-Abre `dist/index.html` directamente en el navegador. En cada push a `main`, GitHub Actions corre las pruebas (partida perfecta, impactos, nivel Guiado, hallazgo proactivo, acción declarada sin hacer, turno corto y ⏭, checklist de ronda, glosario, temas y transiciones) y, solo si pasan, publica `dist/` en GitHub Pages.
+Abre `dist/index.html` directamente en el navegador. En cada push a `main`, GitHub Actions corre las pruebas (partida perfecta en español y en inglés, impactos, nivel Guiado, hallazgo proactivo, acción declarada sin hacer, turno corto y ⏭, checklist de ronda, glosario, diccionarios sin claves faltantes, cambio de idioma en vivo, demo completa en ambos idiomas, temas y transiciones) y, solo si pasan, publica `dist/` en GitHub Pages.
+
+**Traducir:** los textos de la interfaz están en `src/i18n/<idioma>.js`, los del escenario en `src/i18n/escenario.<idioma>.js` y el glosario en `src/i18n/glosario.<idioma>.js`. Una prueba falla si falta una clave, un elemento de lista o una `{variable}` en alguno de los idiomas.
 
 Estructura y convenciones del código: [`.claude/CLAUDE.md`](.claude/CLAUDE.md). Próximas mejoras: [`docs/ROADMAP.md`](docs/ROADMAP.md). Historial: [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -142,6 +173,7 @@ Creado por **Nicolás Sánchez Rodríguez**. Inspirado en el enfoque de [Blue-Jr
   <a href="#what-you-learn">What you learn</a> ·
   <a href="#how-to-play">How to play</a> ·
   <a href="#modes-1">Modes</a> ·
+  <a href="#demo-1">Demo</a> ·
   <a href="#reference-framework">Reference framework</a> ·
   <a href="#how-to-build">How to build</a>
 </p>
@@ -189,7 +221,32 @@ Every mode can be linked directly: [`#turno/normal/corto`](https://nicsanchezr.g
 |---|---|
 | **Shift** | Short (08:00–10:30, 4 events, about 12 min) or full (08:00–15:00, 8 events), with hands-on actions, per-ticket grading and a final report. Three levels: **Guided** (step-by-step tutor, interface tutorial, hints and no time pressure), **Normal** (limited hints that cost points) and **Expert** (no hints, the clock keeps running while you close tickets and some events overlap). |
 | **Rounds checklist** | Start-of-shift rounds of 10 to 15 minutes: 10 checkpoints (temperature, CRACs, UPSs, A/B redundancy, blanking panels, doors, VESDA and extinguishers, housekeeping, access control, raised floor) with five planted findings, their own score and a report. Play it on its own or before a shift, at any of the three levels. |
-| **Demo** | Automatic playback with an operator who inspects, attaches evidence and closes the tickets, with captions. Built for fairs and classes. |
+| **Demo** | An automatic operator plays the short shift at Normal level: walks the data hall, inspects, opens the rack close-up, acts on the floor, attaches evidence and closes the tickets, with captions explaining what they do and why. About 4–5 minutes, with variants for fairs (`#demo/kiosco`) and for recording a video (`#demo/grabar`). |
+
+### Demo
+
+<p align="center">
+  <img src="docs/capturas/demo.gif" alt="Demo: the operator opens the R08 ticket, enters the rack close-up, attaches evidence, installs the blanking panels and closes the ticket with 100 points" width="640"><br>
+  <sub>Demo of the R08 event (missing blanking panels), at 2× (captions in Spanish; switch to EN for English captions).</sub>
+</p>
+
+![Demo with captions: the rack close-up of R08 showing the gap between U30 and U34](docs/capturas/demo.png)
+
+[`#demo`](https://nicsanchezr.github.io/ronda-dc/#demo) plays the short shift at Normal level with the same perfect game the automated tests use (`src/perfect-run.js`): the camera walks the data hall, the operator inspects, opens the rack close-up, takes actions on the floor, attaches evidence, fills in the closing form and shows each grading. Captions in the active language explain what the operator does and why, with glossary terms highlighted.
+
+- **Controls** (bottom, unobtrusive): pause, next step, speed (1×, 1.5×, 2×) and exit. Keyboard: **Space** pauses, **→** skips to the next step and **Esc** exits.
+- **Touching the data hall or the panel** pauses the demo and offers **“Keep watching”** or **“Play from here”**: the shift carries on exactly as it is, now in the student’s hands.
+- **Kiosk** ([`#demo/kiosco`](https://nicsanchezr.github.io/ronda-dc/#demo/kiosco)): no controls, loops forever and returns to the start after 60 s without interaction. It asks for full screen on the first touch; to lock it at a fair, open the browser in kiosk mode, for example `msedge --kiosk "https://nicsanchezr.github.io/ronda-dc/#demo/kiosco" --edge-kiosk-type=fullscreen` (or press **F11**).
+- **Recording** ([`#demo/grabar`](https://nicsanchezr.github.io/ronda-dc/#demo/grabar)): no cursor or controls and large captions, designed for a 1920 × 1080 video (for example, for LinkedIn). It opens on the home page for a few seconds and then flies into the data hall.
+
+**How to record the video (1920 × 1080):**
+
+1. Use a 1920 × 1080 display (or set Windows to 1920 × 1080) and open `#demo/grabar` in Edge or Chrome. Press **F11** for full screen and reload (**F5**) so the demo starts from the home page.
+2. Record with one of these:
+   - **Windows 11 Snipping Tool:** open it, choose **Record**, select the whole screen and press **Start**.
+   - **Xbox Game Bar:** **Win + Alt + R** starts and stops recording the active window (videos go to *Videos › Captures*).
+   - **OBS Studio:** a **Display Capture** source (or **Window Capture** of the browser), *Settings › Video* with base and output resolution at 1920 × 1080 and 30 or 60 fps, MP4 format.
+3. The demo takes about 4–5 minutes and ends on the end-of-shift screen; trim the start and end in any editor. To switch the caption language, choose **ES** or **EN** before reloading.
 
 **Themes:** *Floor grey* (default, designed for projectors) and *High performance*, which follows the ISA-101 approach to operator displays: everything in greys, with color reserved for abnormal conditions. Both come in light and dark (or follow the system), with WCAG AA contrast verified.
 
@@ -224,9 +281,10 @@ npm install
 npm run build        # generates dist/index.html
 npm run contrast     # checks WCAG AA contrast for the themes
 npm test             # builds and runs the Playwright tests (Edge on Windows, Chromium in CI)
+npm run capturas     # regenerates the docs/capturas/ screenshots and the demo GIF (Edge on Windows)
 ```
 
-Open `dist/index.html` directly in the browser. On every push to `main`, GitHub Actions runs the tests (perfect game in Spanish and English, impacts, Guided level, proactive finding, action declared but not done, short shift and ⏭, rounds checklist, glossary, dictionaries with no missing keys, live language switch, themes and transitions) and, only if they pass, publishes `dist/` to GitHub Pages.
+Open `dist/index.html` directly in the browser. On every push to `main`, GitHub Actions runs the tests (perfect game in Spanish and English, impacts, Guided level, proactive finding, action declared but not done, short shift and ⏭, rounds checklist, glossary, dictionaries with no missing keys, live language switch, the full demo in both languages, themes and transitions) and, only if they pass, publishes `dist/` to GitHub Pages.
 
 **Translating:** interface texts live in `src/i18n/<lang>.js`, scenario texts in `src/i18n/escenario.<lang>.js` and the glossary in `src/i18n/glosario.<lang>.js`. A test fails if any key, list item or `{placeholder}` is missing in one of the languages.
 

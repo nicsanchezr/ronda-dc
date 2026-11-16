@@ -3,7 +3,8 @@
 // Usa Microsoft Edge instalado (Windows) con el renderizado normal del navegador: con SwiftShader
 // el fondo de la escena sale negro. El GIF de la demo se arma con gifenc (sin dependencias nativas).
 import { chromium } from '@playwright/test';
-import { GIFEncoder, quantize, applyPalette } from 'gifenc';
+import gifenc from 'gifenc'; // CommonJS
+const { GIFEncoder, quantize, applyPalette } = gifenc;
 import { PNG } from 'pngjs';
 import fs from 'fs';
 import path from 'path';
@@ -129,13 +130,13 @@ const JOBS = {
     for (;;) {
       const png = PNG.sync.read(await p.screenshot());
       const { data, w, h } = half(png);
-      if (!palette || frames % 12 === 0) palette = quantize(data, 256); // paleta renovada cada pocos cuadros
+      if (!palette || frames % 10 === 0) palette = quantize(data, 96, { format: 'rgb444' }); // paleta renovada cada pocos cuadros
       const now = Date.now();
-      gif.writeFrame(applyPalette(data, palette), w, h, { palette, delay: Math.max(120, now - last) });
+      gif.writeFrame(applyPalette(data, palette, 'rgb444'), w, h, { palette, delay: Math.max(200, now - last) });
       last = now; frames++;
       const d = await R(p, () => window.__ronda.demo());
-      if (d.caption === 'demo.wait' || frames > 160) break;
-      await p.waitForTimeout(150);
+      if (d.caption === 'demo.wait' || frames > 120) break;
+      await p.waitForTimeout(380); // ~2 cuadros por segundo: el GIF queda liviano para el README
     }
     gif.finish();
     fs.writeFileSync(`${OUT}/demo.gif`, gif.bytes());
