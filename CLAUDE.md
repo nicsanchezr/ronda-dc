@@ -10,7 +10,8 @@
 
 Ronda DC es un simulador 3D público de un turno de operación en una sala de datacenter (operador N1), inspirado en el enfoque de Blue-Jr (https://heindall92.github.io/Blue-Jr/): turno con alertas, tickets, decisiones corregidas al momento e informe final. Autor: Nicolás Sánchez Rodríguez (docente DUOC UC / INACAP). Idioma de la interfaz: español de Chile.
 
-## Estado actual (v0.2, ver CHANGELOG.md)
+## Estado actual (v0.3, ver CHANGELOG.md)
+- v0.3: acciones en sala (FIELD_ACTIONS), autorización del cliente, hallazgos proactivos, niveles Guiado/Normal/Experto con tutor, pistas y glosario, pruebas con Playwright en CI.
 - v0.2: vista de detalle del rack, transición continua sala ↔ rack, temas Gris de sala / Alto rendimiento (claro y oscuro), lenguaje de estado por forma, textos centralizados, README público.
 
 ### Base del MVP (v0.1)
@@ -25,6 +26,10 @@ Ronda DC es un simulador 3D público de un turno de operación en una sala de da
 - `src/scene3d.js`: escena Three.js 0.160 (racks, LEDs por equipo, CRAC, UPS, contención, agua, selección, vistas de cámara).
 - `src/rackview.js`: vista de detalle del rack, construida dentro de la misma escena en la posición del rack: 42 U numeradas, equipos con LED de encendido/actividad/estado, PSU y cables por rama (colores `cord.A`/`cord.B` del tema) hacia PDU verticales, paneles ciegos o hueco, puerta trasera, cable de consola. Se abre con doble clic en un rack o con «Ver rack en detalle»; Esc vuelve a la sala.
 - Transición sala ↔ detalle (`scene3d.js`): un progreso `p` (0 sala, 1 detalle) controla el vuelo de la cámara (~950 ms, con arco sobre los racks), el fundido del detalle, la atenuación de la sala (opacidad + niebla) y la ocultación de lo que tapa el rack (`fade.js`). Frente/trasera rodea el rack en arco. Clics bloqueados mientras `scene.busy`. Con `prefers-reduced-motion`, solo un fundido corto. Los paneles usan `panelShow`/`panelHide` (clases `.entering`/`.leaving`).
+- `src/scoring.js`: corrección pura de un ticket (`scoreTicket`, `actionStatus`) y `LEVEL_RULES` (penalizaciones por nivel). Tipos de acción en `scenario.js`: `field`, `verify` (+`after`), `note`, `abstain`, `seq`, `authorized`/`unauthorized`; sin tipo = declarativa.
+- Acciones en sala: catálogo `FIELD_ACTIONS` en `scenario.js`; disponibilidad y efecto en `sim.js` (`fieldAvailable`, `doField`, `requestAuth`); UI en `main.js` (`fieldActionsHtml`, `startField`, `finishField`). Lo físico ocurre al completar la acción; `applyClose` solo aplica lo declarativo y los escalamientos.
+- Niveles: `LEVELS`/`schedFor` en `scenario.js` (Experto cambia horarios); `w.sched` y `w.freeze` en `sim.js`. Cada evento tiene `hints` y `guided` (pasos del tutor, formulario reducido y reflexión); `TUTORIAL` es el recorrido de la interfaz.
+- `src/glossary.js` + `src/i18n/glosario.es.js`: marcado automático (`gl(texto)`) y tooltip. Usar `gl()` en textos nuevos para el estudiante.
 - `src/main.js`: UI (panel con pestañas, inspector, modal de cierre, corrección, fin de turno, informe Markdown).
 - `src/themes/`: un archivo por tema (`sala.theme.js` = Gris de sala, por defecto; `hmi.theme.js` = Alto rendimiento, criterio ISA-101), con tokens para `light` y `dark`: `ui` (variables CSS), `sev`/`onSev`, `led`, `cord`, `heat` y `scene` (materiales, luces y texturas 3D; `scene.rv` = vista de detalle). `base.js` tiene lo común. `index.js` registra los temas, resuelve el modo (claro/oscuro/sistema), lo guarda en localStorage (`ronda-dc-tema`) y escribe las variables CSS. `three.js` es el adaptador para Three.js (`TB.color`, `TB.canvas`, `TB.on`). **Para agregar un tema basta crear `src/themes/<id>.theme.js`**: `build.mjs` descubre los `*.theme.js` solo (módulo `virtual:themes`).
 - Sin barras de desplazamiento gruesas: las zonas con scroll usan la barra delgada global (tokens `scrollThumb`/`scrollThumbHover`); las pestañas del panel deben caber o pasar a dos líneas, nunca con scroll visible. Revisar en Edge/Windows con `ignoreDefaultArgs: ['--hide-scrollbars']` en Playwright (en headless las barras están ocultas).
@@ -46,6 +51,7 @@ Ronda DC es un simulador 3D público de un turno de operación en una sala de da
 - Al cambiar la interfaz de forma visible, regenerar las capturas y agregar la entrada en `CHANGELOG.md`.
 - Las pruebas se hicieron con Playwright + Chrome/Edge recorriendo los 8 tickets. Ojo: con `--use-gl=swiftshader` el fondo de la escena sale negro (defecto de SwiftShader); para revisar colores, usar el renderizado normal del navegador.
 - `npm run contrast` antes de tocar colores de un tema.
+- `npm test`: compila y corre Playwright (`tests/`). Con `?test` en la URL existe `window.__ronda` (`step`, `select`, `state`) para avanzar el reloj y leer el estado; no usarla en la app. Las pruebas corren en GitHub Actions antes del deploy. Requiere @playwright/test 1.64+ con Node 26.
 
 ## Convenciones
 - Todo debe ser ficticio (empresa, personas, clientes). No usar marcas reales en el diseño propio.

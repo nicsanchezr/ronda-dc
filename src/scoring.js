@@ -90,7 +90,7 @@ export function scoreTicket(inc, ans, ctx) {
   parts.push({
     dim: T.dimAct,
     pts: Math.max(0, actPts), max: 30,
-    items: items.filter((x) => x.st !== 'none' && x.st !== 'missing').map((x) => ({ text: x.a.text, st: x.st, ok: !!x.a.ok, critical: !!x.a.critical })),
+    items: items.filter((x) => x.st !== 'none' && x.st !== 'missing').map((x) => ({ text: x.a.text, st: x.st, ok: !!x.a.ok, critical: !!x.a.critical, kind: x.a.note ? 'note' : x.a.field || x.a.seq ? 'field' : x.a.abstain ? 'abstain' : x.a.verify ? 'verify' : 'declare' })),
     exp: okIds.map((a) => a.text).join(' · '),
     yours: items.filter((x) => x.st !== 'none' && x.st !== 'missing').map((x) => x.a.text).join(' · '),
     crit: crit.map((x) => x.a.text), wrong: wrong.map((x) => x.a.text),

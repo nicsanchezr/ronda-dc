@@ -38,4 +38,5 @@ Mejoras pedidas por Nicolás (15-11-2026), en orden sugerido.
 
 ## Después
 - Más turnos (semana completa), escenarios en JSON para que otros docentes creen casos, personalización por asignatura (AAY1107 Monitoreo de Redes, Comunicaciones Corporativas, etc.).
-- ~~Repositorio público en GitHub con GitHub Pages y licencia~~ (hecho en v0.2). Pendiente: CI con Playwright que recorra los 8 tickets y regenere las capturas de `docs/capturas/`.
+- ~~Repositorio público en GitHub con GitHub Pages y licencia~~ (v0.2) y ~~CI con Playwright~~ (v0.3). Pendiente: regenerar automáticamente las capturas de `docs/capturas/`.
+- Hecho en v0.3 (fuera del orden original): acciones en sala, niveles Guiado/Normal/Experto con tutor, pistas y glosario.

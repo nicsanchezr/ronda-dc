@@ -2,9 +2,17 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). Versiones según [SemVer](https://semver.org/lang/es/).
 
-## [Sin publicar]
+## [0.3.0] · 2026-11-16
 
 ### Agregado
+- **Acciones en sala** desde el inspector (22 acciones: reubicar el sensor de R04, instalar paneles ciegos, levantar la baldosa, colocar absorbente, fotografiar, asegurar la puerta, subir CRAC-1…), con confirmación neutra, reloj a 8× con indicador de progreso, animación 3D y registro en la bitácora. La dinámica de la sala responde a la acción real.
+- **Acciones restringidas** sobre equipos de clientes, con «Solicitar autorización al cliente» y respuesta a los minutos (E4 autoriza, E1 niega); la solicitud marca «Cliente» en el escalamiento y la corrección explica el porqué cuando no correspondía.
+- **Corrección de acciones** que distingue lo hecho en sala, lo verificado, lo declarado y lo **declarado sin hacer** (cuenta como error). La nota del cierre cuenta como registro en la bitácora.
+- **Hallazgos proactivos** (E3, E4, E8): si se corrige antes de la alerta, la alerta no salta y el ticket suma +10, sin pasar del 100 % final.
+- **Niveles Guiado, Normal y Experto**, elegibles en la portada y por ruta (`#turno/guiado`…), con penalizaciones propias. Guiado: tutor paso a paso en los 8 eventos, tutorial interactivo de la interfaz, pistas, formulario reducido y pregunta de reflexión, sin presión de tiempo. Experto: sin pistas ni resaltados, el reloj no se pausa al cerrar y hay eventos que coinciden.
+- **Pistas** a pedido (3 por evento en Guiado, 2 con costo en Normal).
+- **Glosario** de 36 términos con tooltip accesible (mouse, teclado y toque) y pestaña **Consulta** (Runbooks | Glosario).
+- **Pruebas automáticas** con Playwright (`npm test`) que corren en GitHub Actions antes del deploy.
 - **Portada propia** con la escena 3D girando de fondo: logotipo, nombre y subtítulo, tres tarjetas de modo (Turno disponible; Checklist de ronda y Demo próximamente) con descripción, duración estimada y botón; qué se aprende, marco de referencia, último puntaje guardado, créditos, licencia y enlace al repositorio. En claro y oscuro.
 - **Rutas por hash**: `#turno`, `#checklist`, `#demo` (y la portada sin hash). El logotipo vuelve a la portada; volver a Turno continúa el turno en curso.
 - **Entrada a la sala** sin modal: la cámara vuela desde la órbita de la portada hasta la sala mientras aparecen la cabecera y el panel.
@@ -58,7 +66,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). V
 - Dinámica de la sala: temperatura por falla de climatización, carga de PDU con disparo, fuga que crece; impactos por acciones críticas.
 - Fin de turno con puntaje, MTTA, MTTR, disponibilidad e informe de relevo en Markdown.
 
-[Sin publicar]: https://github.com/nicsanchezr/ronda-dc/compare/v0.2.1...main
+[0.3.0]: https://github.com/nicsanchezr/ronda-dc/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/nicsanchezr/ronda-dc/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/nicsanchezr/ronda-dc/compare/11343d3...v0.2.0
 [0.1.0]: https://github.com/nicsanchezr/ronda-dc/commit/11343d3

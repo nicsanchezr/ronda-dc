@@ -598,7 +598,8 @@ function showReview(tk) {
 function actionItemsHtml(p) {
   if (!p.items.length) return '—';
   const ST = { done: 'field.stDone', declared: 'field.stDeclared', notdone: 'field.stNotDone', false: 'field.stFalse', unverified: 'field.stUnverified' };
-  return `<ul class="acti">${p.items.map((x) => `<li class="st-${x.st}${x.critical ? ' crit' : !x.ok ? ' wrong' : ''}">${esc(x.text)} <em>${esc(t(ST[x.st], { pen: p.notDonePen }))}</em></li>`).join('')}</ul>`;
+  const label = (x) => x.st === 'done' && x.kind === 'note' ? 'field.stNote' : x.st === 'declared' && x.kind === 'verify' ? 'field.stVerified' : x.st === 'declared' && x.kind === 'abstain' ? 'field.stKept' : ST[x.st];
+  return `<ul class="acti">${p.items.map((x) => `<li class="st-${x.st}${x.critical ? ' crit' : !x.ok ? ' wrong' : ''}">${esc(x.text)} <em>${esc(t(label(x), { pen: p.notDonePen }))}</em></li>`).join('')}</ul>`;
 }
 
 function closeModal() { $('#modal').hidden = true; S.modal = false; lastTs = performance.now(); renderPanel(); renderInspector(); renderSummary(); scene.update(S.world, S.mode, sevMap()); }
