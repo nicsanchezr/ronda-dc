@@ -380,6 +380,84 @@ export function createScene(container, handlers) {
     if (detail) { exitRack(() => flyTo(v[0].clone(), v[1].clone())); return; }
     flyTo(v[0].clone(), v[1].clone());
   }
+  // ---------- Tomas de cámara con línea de visión (modo Demo) -------------------------------------
+  /** Caja de un objeto de la sala (solo mallas visibles: sin etiquetas ni íconos). */
+  function targetBox(kind, id) {
+    const o = objectFor(kind, id); if (!o) return null;
+    const b = new THREE.Box3();
+    o.updateMatrixWorld(true);
+    o.traverse((m) => { if (m.isMesh && m.visible) b.expandByObject(m); });
+    return b.isEmpty() ? new THREE.Box3().setFromObject(o) : b;
+  }
+  const occRay = new THREE.Raycaster();
+  /** ¿Se ve el punto «to» desde «from» sin que otro objeto se interponga? (los del propio objetivo no cuentan) */
+  function lineClear(from, to, kind, id) {
+    const dir = to.clone().sub(from); const dist = dir.length(); dir.normalize();
+    occRay.set(from, dir); occRay.near = 0; occRay.far = Math.max(0, dist - 0.03);
+    return !occRay.intersectObjects(pickables, false).some((h) => h.object.visible && !(h.object.userData && h.object.userData.kind === kind && h.object.userData.id === id));
+  }
+  /** ¿La cámara quedaría dentro de algún objeto? (desde adentro, el raycasting no ve las caras) */
+  function insideAny(pos) {
+    const b = new THREE.Box3();
+    return pickables.some((m) => m.visible && m.geometry && !m.geometry.type.startsWith('Plane') && b.setFromObject(m).expandByScalar(0.05).containsPoint(pos));
+  }
+  /** Frente de un objeto (vector unitario hacia donde mira) y su eje lateral. */
+  function frontOf(kind, id) {
+    let n;
+    if (kind === 'rack') n = new THREE.Vector3(0, 0, RACKS.find((r) => r.id === id).row === 'A' ? 1 : -1);
+    else if (kind === 'crac') n = new THREE.Vector3(0, 0, id === 'CRAC-1' ? 1 : -1);
+    else if (kind === 'ups') n = new THREE.Vector3(1, 0, 0);
+    else n = new THREE.Vector3(0, 0, 1);
+    return { n, side: new THREE.Vector3().crossVectors(n, new THREE.Vector3(0, 1, 0)).negate() };
+  }
+  /**
+   * Resuelve una toma: shot = { kind, id, look: [lado, alto, frente] (punto a mirar, relativo al centro
+   * de la caja, en ejes del frente del objeto), cands: [[lado, alto, frente], …] (posiciones de cámara) }.
+   * Devuelve la primera posición desde la que el objetivo se ve sin obstáculos (comprobado con
+   * raycasting hacia el centro y hacia arriba y abajo de él), o null si todas están tapadas.
+   */
+  function resolveShot(shot) {
+    const box = targetBox(shot.kind, shot.id); if (!box) return null;
+    const c = box.getCenter(new THREE.Vector3()), size = box.getSize(new THREE.Vector3());
+    const { n, side } = frontOf(shot.kind, shot.id);
+    const rel = ([s, u, f]) => c.clone().addScaledVector(side, s).add(new THREE.Vector3(0, u, 0)).addScaledVector(n, f);
+    const target = rel(shot.look || [0, 0, 0]);
+    const samples = [target, target.clone().add(new THREE.Vector3(0, size.y * 0.25, 0)), target.clone().add(new THREE.Vector3(0, -size.y * 0.25, 0))];
+    for (let i = 0; i < shot.cands.length; i++) {
+      const pos = rel(shot.cands[i]);
+      if (!insideAny(pos) && samples.every((p) => lineClear(pos, p, shot.kind, shot.id))) return { pos, target, index: i };
+    }
+    return null;
+  }
+  /** Vuela a una toma ya resuelta (ms = 0: salto inmediato). */
+  function flyShot(res, kind, id, ms = 1600) {
+    if (busy || !res) return false;
+    if (detail) { exitRack(() => flyShot(res, kind, id, ms)); return true; }
+    controls.minDistance = 0.5; // las tomas de la Demo pueden estar más cerca que la distancia mínima de la órbita
+    if (ms <= 0 || reduceMotion.matches) { anim = null; camera.position.copy(res.pos); controls.target.copy(res.target); controls.update(); }
+    else flyTo(res.pos.clone(), res.target.clone(), ms);
+    select(kind, id);
+    return true;
+  }
+  /** Corre el encuadre a la derecha (px de pantalla) para que el objetivo no quede bajo el inspector. */
+  function setFrameOffset(px) {
+    const w = container.clientWidth;
+    viewShift = w ? px / w : 0; applyShift();
+  }
+  /** Detiene en seco cualquier animación de cámara y sale del detalle del rack sin transición. */
+  function cancel() {
+    anim = null;
+    renderer.domElement.style.opacity = '1'; renderer.domElement.style.transition = '';
+    if (detail) {
+      RV.select(null); RV.clear(); detail = null; p = 0; resetContext();
+      controls.minDistance = 2.2; controls.maxDistance = 16; controls.maxPolarAngle = Math.PI * 0.49;
+      if (handlers.onDetail) handlers.onDetail(null);
+    }
+    controls.minDistance = 2.2;
+    controls.autoRotate = autoRotate;
+    setBusy(false);
+  }
+
   /** Vuela hacia un objeto de la sala (ms: duración del vuelo; la Demo usa vuelos más lentos). */
   function focus(kind, id, ms = 700) {
     if (busy) return;
@@ -714,11 +792,16 @@ export function createScene(container, handlers) {
   return {
     update(w, m, sev) { world = w; mode = m; sevMap = sev; sync(); },
     setView, focus, select, enterRack, exitRack, rackSide, focusDevice, setLanding,
+    resolveShot, flyShot, setFrameOffset, cancel,
+    /** Vuelve a los límites normales de la órbita (al terminar las tomas de la Demo). */
+    restoreOrbit() { if (!detail) controls.minDistance = 2.2; },
+    get camPose() { return { pos: camera.position.toArray(), target: controls.target.toArray() }; },
     /** Animación breve al completar una acción en sala (el resto lo hace sync con el nuevo estado). */
     animateField(id) { if (id === 'crac1-boost') blinkUntil = performance.now() + 1500; if (world) sync(); },
     get landing() { return landing; },
     get detail() { return detail; },
     get busy() { return busy; },
+    get animating() { return !!anim; },
     toggleRotate() { autoRotate = !autoRotate; if (!detail) controls.autoRotate = autoRotate; controls.autoRotateSpeed = 0.8; return autoRotate; },
     zoom(f) { if (busy) return; const d = camera.position.clone().sub(controls.target).multiplyScalar(f); const len = d.length(); if (len > controls.minDistance && len < controls.maxDistance) camera.position.copy(controls.target).add(d); },
   };

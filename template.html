@@ -239,6 +239,12 @@ body[data-demo="kiosco-libre"] .hintbar{display:block!important}
 body[data-demo="grabar"],body[data-demo="grabar"] *{cursor:none!important}
 body[data-demo="grabar"] #demosub{font-size:27px;max-width:min(1240px,calc(100vw - var(--asidew) - 60px));padding:16px 24px;bottom:40px}
 body[data-demo="grabar"] #demosub .dk{font-size:15px}
+#demoboost{position:fixed;z-index:56;left:calc((100vw - var(--asidew)) / 2);top:74px;transform:translateX(-50%);font:600 15px var(--mono);letter-spacing:.06em;color:var(--mut);background:var(--glass);border:1px solid var(--line2);border-radius:999px;padding:3px 12px}
+#democard{position:fixed;inset:0;z-index:80;background:var(--bg);display:flex;align-items:center;justify-content:center;text-align:center}
+#democard .cc svg{width:96px;height:96px;color:var(--acc)}
+#democard h1{font:600 84px/1 var(--head);letter-spacing:.08em;text-transform:uppercase;margin:18px 0 10px;color:var(--txt)}
+#democard p{font:500 30px var(--head);color:var(--mut);margin:6px 0}
+#democard p.url{font:600 36px var(--mono);color:var(--acc-text);margin:0 0 22px}
 @media (prefers-reduced-motion:reduce){.demo-press{animation:none}}
 /* briefing (antes del turno) y ayuda */
 #briefing{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(780px,calc(100% - 32px));max-height:calc(100% - 32px);z-index:20;--px:0px;--py:14px}
@@ -456,6 +462,8 @@ body[data-mode2=ronda] #clockwrap .seg,body[data-mode2=ronda] #shiftbar{display:
 <div id="demosub" aria-live="polite" hidden></div>
 <div id="democtl" role="toolbar" hidden></div>
 <div id="demoask" role="dialog" aria-modal="false" hidden></div>
+<div id="demoboost" aria-hidden="true" hidden></div>
+<div id="democard" hidden></div>
 <div id="toasts" aria-live="polite"></div>
 
 <div class="overlay" id="modal" hidden><div class="card" id="modalbox" role="dialog" aria-modal="true"></div></div>

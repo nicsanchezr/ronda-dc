@@ -21,6 +21,9 @@ async function runDemo(page, lang) {
   expect(s.tickets.every((x) => x.closed && x.total === 100)).toBe(true);
   expect(s.impacts).toEqual([]);
   await expect(page.locator('#endbox .kpi').first()).toContainText('400');
+  const d = await demoState(page);
+  expect(d.shots.length).toBeGreaterThan(8);
+  expect(d.shots.filter((x) => !x.clear)).toEqual([]); // ninguna toma tapada
   expect(errors).toEqual([]);
   return s;
 }
@@ -78,4 +81,59 @@ test('kiosco sin controles y grabación sin cursor ni controles', async ({ page 
   await expect(page.locator('#landing')).toBeVisible();
   await expect.poll(async () => (await demoState(page)).active).toBe(false); // la grabación ya parte en la portada
   expect(page.url()).not.toContain('#demo');
+});
+
+/** Comprueba que no quede nada de la demo corriendo: guion, esperas, temporizadores, subtítulos ni reloj. */
+async function expectFullyStopped(page) {
+  await expect(page.locator('#landing')).toBeVisible();
+  await expect.poll(async () => { const d = await demoState(page); return { active: d.active, running: d.running, pending: d.pending, idle: d.idle }; })
+    .toEqual({ active: false, running: false, pending: 0, idle: false });
+  await expect(page.locator('#demosub')).toBeHidden();
+  await expect(page.locator('#democtl')).toBeHidden();
+  await expect(page.locator('#demoask')).toBeHidden();
+  await expect(page.locator('#demoboost')).toBeHidden();
+  await expect(page.locator('.demo-press')).toHaveCount(0);
+  const s0 = await state(page);
+  await page.waitForTimeout(1500);
+  const s1 = await state(page);
+  expect(s1.t).toBe(s0.t); // el reloj del turno está detenido
+  expect(s1.tickets).toEqual([]);
+  expect(await page.evaluate(() => window.__ronda.running())).toBe(false);
+  expect((await demoState(page)).caption).toBe(null);
+}
+
+test('Esc en pantalla completa solo sale de pantalla completa; Esc fuera de ella detiene la demo por completo', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto(`${APP}?test#demo`);
+  await expect(page.locator('#demosub')).toBeVisible();
+  await page.click('#democtl [data-demo="fullscreen"]');
+  await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(true);
+  await page.keyboard.press('Escape');
+  // el navegador sale de pantalla completa con esa Esc (si la ventana de prueba no lo hace, lo hacemos como él)
+  await page.evaluate(() => document.fullscreenElement && document.exitFullscreen());
+  await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(false);
+  expect((await demoState(page)).active).toBe(true);
+  await expect(page.locator('#demosub')).toBeVisible();
+  expect(page.url()).toContain('#demo');
+  await page.waitForTimeout(900); // pasada la ventana de 800 ms tras salir de pantalla completa
+  await page.keyboard.press('Escape');
+  await expectFullyStopped(page);
+  expect(errors).toEqual([]);
+});
+
+test('el botón Salir a mitad de un paso detiene la demo, la cámara y el reloj', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto(`${APP}?test#demo`);
+  await page.waitForFunction(() => window.__ronda.demo().caption === 'demo.E1.open', null, { timeout: 60_000 });
+  await page.click('#democtl [data-demo="exit"]');
+  await expectFullyStopped(page);
+  expect(errors).toEqual([]);
+});
+
+test('todas las tomas de la demo ven su objetivo sin obstáculos (raycasting)', async ({ page }) => {
+  await page.goto(`${APP}?test#demo`);
+  await expect(page.locator('#demosub')).toBeVisible();
+  const shots = await page.evaluate(() => window.__ronda.demoCheckShots());
+  expect(shots.length).toBeGreaterThan(8);
+  expect(shots.filter((s) => !s.clear)).toEqual([]);
 });

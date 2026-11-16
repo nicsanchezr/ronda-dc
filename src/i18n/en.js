@@ -507,7 +507,8 @@ export default {
       photo: 'A photo of the exact spot is taken: it is attached to the ticket as evidence.',
       close: 'Closure: true positive, P2, escalated to HVAC to repair the drain.',
     },
-    ctl: { label: 'Demo controls', pause: 'Pause the demo', play: 'Resume the demo', next: 'Next step', speed: 'Speed', exit: 'Exit the demo', dec: '.' },
+    ctl: { fs: 'Full screen', fsExit: 'Exit full screen', label: 'Demo controls', pause: 'Pause the demo', play: 'Resume the demo', next: 'Next step', speed: 'Speed', exit: 'Exit the demo', dec: '.' },
+    card: { play: 'Try it at', code: 'Open source' },
     ask: { title: 'Demo paused', text: 'You touched the data hall. You can keep watching or take over the shift as it is.', resume: 'Keep watching', takeover: 'Play from here' },
     // closing notes for the perfect game (src/perfect-run.js): used by the tests and the Demo
     note: {

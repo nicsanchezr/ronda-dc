@@ -119,7 +119,7 @@ setInterval(() => {
   const now = performance.now(); const real = (now - lastTs) / 1000; lastTs = now;
   if (!S.running || (S.modal && S.level !== 'experto') || S.ended) return;
   if (guidedHold()) { updateSpeedUI(); return; }
-  advance((real * (S.act ? ACT_SPEED : S.speed)) / SEC_PER_MIN);
+  advance((real * (S.act ? ACT_SPEED : S.speed) * (S.demoBoost || 1)) / SEC_PER_MIN); // demoBoost: video de la Demo
   tickUI();
 }, 100);
 
@@ -273,7 +273,8 @@ function openTicket(id) {
   const tk = S.tickets.find((t) => t.id === id); if (!tk) return;
   if (tk.ackAt == null) tk.ackAt = S.world.t;
   S.active = id; S.tab = 'tickets';
-  const ms = S.demo && !DEMO_FAST ? 1600 : 700; // la Demo vuela más lento para que se pueda seguir
+  if (S.demo) { renderPanel(); $('#pane').scrollTop = 0; return; } // en la Demo, la cámara sigue las tomas de src/demo.js
+  const ms = 700;
   if (tk.inc.rack) { scene.focus('rack', tk.inc.rack, ms); }
   else if (tk.inc.object === 'CRAC-2') scene.focus('crac', 'CRAC-2', ms);
   else if (tk.inc.object === 'UPS-A') scene.focus('ups', 'UPS-A', ms);
@@ -1086,7 +1087,7 @@ function route() {
     if (!(demo.active && demo.mode === mode)) demo.start(mode);
     return;
   }
-  if (demo.active) { demo.stop(); boot(chosenLevel(), 'completo'); showLanding(null); } // al salir de la Demo: partida nueva desde la portada
+  if (demo.active) exitDemo(); // al salir de la Demo: todo detenido y partida nueva desde la portada
   if (r0 === 'checklist') {
     const lv = LEVELS.some((l) => l.id === r1) ? r1 : 'normal';
     enterChecklist(lv);
@@ -1102,11 +1103,26 @@ function route() {
 }
 
 // ---------- Modo Demo (src/demo.js) --------------------------------------------------------------
-const DEMO_FAST = /[?&]test\b/.test(location.search) && /[?&]rapido\b/.test(location.search); // solo pruebas
+const TEST = /[?&]test\b/.test(location.search);
+const DEMO_FAST = TEST && /[?&]rapido\b/.test(location.search); // solo pruebas
+const DEMO_VIDEO = TEST && /[?&]video\b/.test(location.search); // tools/video.mjs
+const DEMO_TOMAS = TEST && /[?&]tomas\b/.test(location.search); // tools/capturas.mjs (hoja de contactos)
+/** Sale de la Demo: detiene guion, esperas, cámara y reloj, y deja el estado limpio. */
+function exitDemo() {
+  demo.stop();
+  $('#modal').hidden = true; $('#end').hidden = true;
+  $('#toasts').innerHTML = '';
+  boot(chosenLevel(), 'completo');
+  S.running = false;
+  showLanding(null);
+}
 const demo = createDemo({
   S: () => S,
   scene,
   fast: DEMO_FAST,
+  video: DEMO_VIDEO,
+  shotPause: DEMO_TOMAS,
+  setBoost(n) { S.demoBoost = n; },
   boot(level, duration) {
     $('#modal').hidden = true; $('#end').hidden = true; panelHide($('#briefing'));
     boot(level, duration);
@@ -1116,7 +1132,6 @@ const demo = createDemo({
   showLanding: () => showLanding(null),
   start() { start(); S.running = false; updateSpeedUI(); },
   select(kind, id) { S.sel = { kind, id }; scene.select(kind, id); renderInspector(); },
-  focus: (kind, id, ms) => scene.focus(kind, id, ms),
   openRackView: (id) => openRackView(id),
   exitRack: () => scene.exitRack(),
   advance(min) { advance(min); tickUI(); },
@@ -1128,7 +1143,7 @@ const demo = createDemo({
     if (!S.ended && !S.modal) { S.running = true; lastTs = performance.now(); }
     updateSpeedUI(); renderPanel();
   },
-  stop() { location.hash = ''; },
+  stop() { if (location.hash) location.hash = ''; else exitDemo(); },
 });
 
 // ---------- API para pruebas automáticas (solo con ?test en la URL) -------------------------
@@ -1140,6 +1155,10 @@ if (/[?&]test\b/.test(location.search)) {
     report: () => report(),
     demo: () => demo.state(),
     demoSpeed: (v) => demo.setSpeed(v),
+    demoResumeShot: () => demo.resumeShot(),
+    demoCheckShots: () => demo.checkShots(),
+    camPose: () => scene.camPose,
+    running: () => S.running,
     state() {
       const w = S.world;
       return {

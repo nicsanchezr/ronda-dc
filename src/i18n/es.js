@@ -507,7 +507,8 @@ export default {
       photo: 'Fotografía el punto exacto: la foto queda adjunta al ticket como evidencia.',
       close: 'Cierre: verdadero positivo, P2, escalado a Climatización para que repare el drenaje.',
     },
-    ctl: { label: 'Controles de la demo', pause: 'Pausar la demo', play: 'Seguir la demo', next: 'Siguiente paso', speed: 'Velocidad', exit: 'Salir de la demo', dec: ',' },
+    ctl: { fs: 'Pantalla completa', fsExit: 'Salir de pantalla completa', label: 'Controles de la demo', pause: 'Pausar la demo', play: 'Seguir la demo', next: 'Siguiente paso', speed: 'Velocidad', exit: 'Salir de la demo', dec: ',' },
+    card: { play: 'Pruébalo en', code: 'Código abierto' },
     ask: { title: 'Demo en pausa', text: 'Tocaste la sala. Puedes seguir mirando o tomar el control del turno tal como está.', resume: 'Seguir viendo', takeover: 'Jugar yo desde aquí' },
     // notas de cierre de la partida perfecta (src/perfect-run.js): las usan las pruebas y la Demo
     note: {
