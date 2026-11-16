@@ -22,7 +22,8 @@ Mejoras pedidas por Nicolás (15-11-2026), en orden sugerido.
 - Interruptor claro/oscuro (y respetar `prefers-color-scheme`), aplicado también a la escena 3D (fondo, piso, iluminación y etiquetas).
 - Mantener contraste WCAG AA y una buena lectura en proyector.
 
-## 3. Checklist de ronda (además del turno)
+## 3. Checklist de ronda (además del turno) ✅
+- Hecho en v0.4: 10 ítems con cinco hallazgos plantados, evidencia desde el inspector, ayudas por nivel, puntaje propio, informe Markdown y paso directo al turno con la misma sala.
 - Modo o pestaña "Checklist de ronda": ronda de inicio de turno con ítems verificables en la sala (temperatura y humedad, alarmas de CRAC, estado de las UPS, puertas, paneles ciegos, piso técnico, extintores, VESDA, limpieza, control de acceso).
 - Cada ítem se marca como OK, observación o falla, con evidencia tomada de la inspección 3D. Algunos ítems tienen hallazgos plantados.
 - Se puede usar sola, como actividad corta de clase, o al inicio del turno, con puntaje propio y exportación.
@@ -36,7 +37,24 @@ Mejoras pedidas por Nicolás (15-11-2026), en orden sugerido.
 - Portada con presentación (qué es, para quién, qué aprende), vista 3D animada de fondo o captura en vivo, botones "Comenzar turno", "Ver demo" y "Checklist de ronda", competencias que se trabajan, marco normativo, créditos y licencia.
 - Selector de idioma ES/EN (el diccionario del punto 0 lo permite); traducir primero la interfaz y luego los escenarios.
 
+## 6. Escenarios propios cargables
+- Formato **JSON declarativo**, sin código ejecutable: la sala, los racks y equipos, los eventos (con su respuesta esperada, explicación y referencia), el tutor del nivel Guiado y las pistas se describen como datos que el simulador interpreta.
+- **Esquema** publicado (JSON Schema) y un **validador** que se ejecuta al cargar, con mensajes claros en español que indiquen el campo y el problema (p. ej. «eventos[2].acciones: falta el tipo de acción»).
+- **Documentación** del formato y un **escenario de ejemplo** completo en el repositorio, con todo ficticio.
+- Cada escenario puede traer el nombre de la empresa, un **logo** (PNG o JPG; SVG solo si se sanea antes de mostrarlo), la sala, los racks, los eventos, el tutor y las pistas.
+- Se carga **localmente desde un archivo**: nunca se sube a un servidor. Lo cargado puede guardarse en `localStorage` del navegador.
+- **Marcas reales** solo en escenarios cargados por el usuario, bajo su responsabilidad; nunca en los escenarios incluidos ni en el repositorio.
+
+## 7. Desafíos
+- Escenarios complejos con **eventos encadenados**, donde una falla provoca o agrava otra (p. ej. una caída de red que deja la sala sin monitoreo mientras falla el generador en una prueba de corte).
+- Cada desafío en versión **guiada** (con tutor que explica la relación entre los eventos) y **experta** (sin ayudas y con tiempos más cortos).
+- Se construyen sobre el formato del punto 6, para que también puedan crearse como escenarios propios.
+
+## 8. Editor de escenarios (más adelante)
+- Editor visual dentro de la página para armar la sala, ubicar racks y equipos, y escribir eventos, tutor y pistas sin editar el JSON a mano.
+- Exporta e importa el mismo formato del punto 6 y valida mientras se edita. Sigue siendo local: nada sale del navegador.
+
 ## Después
-- Más turnos (semana completa), escenarios en JSON para que otros docentes creen casos, personalización por asignatura (AAY1107 Monitoreo de Redes, Comunicaciones Corporativas, etc.).
+- Más turnos (semana completa), personalización por asignatura (AAY1107 Monitoreo de Redes, Comunicaciones Corporativas, etc.).
 - ~~Repositorio público en GitHub con GitHub Pages y licencia~~ (v0.2) y ~~CI con Playwright~~ (v0.3). Pendiente: regenerar automáticamente las capturas de `docs/capturas/`.
 - Hecho en v0.3 (fuera del orden original): acciones en sala, niveles Guiado/Normal/Experto con tutor, pistas y glosario.
